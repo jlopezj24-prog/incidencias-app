@@ -190,10 +190,7 @@ STATIC_DIR = pathlib.Path(__file__).parent / "static"
 
 if STATIC_DIR.exists():
     app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
-
-    @app.get("/logo.png")
-    async def serve_logo():
-        return FileResponse(str(STATIC_DIR / "logo.png"))
+    app.mount("/static-files", StaticFiles(directory=str(STATIC_DIR)), name="static-files")
 
     @app.get("/")
     async def serve_root():
@@ -201,4 +198,7 @@ if STATIC_DIR.exists():
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
+        file_path = STATIC_DIR / full_path
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(str(file_path))
         return FileResponse(str(STATIC_DIR / "index.html"))

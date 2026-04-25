@@ -19,5 +19,6 @@ cd ..
 echo "==> Copying frontend build to backend/static..."
 mkdir -p backend/static
 cp -r frontend/dist/* backend/static/
+cp frontend/public/logo.png backend/static/logo.png 2>/dev/null || true
 
 echo "==> Build complete!"

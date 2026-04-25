@@ -43,12 +43,13 @@ function EmptyState() {
 
 function EstadoDia() {
   const [fecha, setFecha] = useState(todayStr())
+  const [tripulacion, setTripulacion] = useState('A')
   const [estado, setEstado] = useState(null)
   const [error, setError] = useState(false)
 
-  const fetchEstado = async (f) => {
+  const fetchEstado = async (f, t) => {
     try {
-      const r = await axios.get(`/api/estado-dia?fecha=${f}`)
+      const r = await axios.get(`/api/estado-dia?fecha=${f}&tripulacion=${t}`)
       setEstado(r.data)
       setError(false)
     } catch {
@@ -56,7 +57,7 @@ function EstadoDia() {
     }
   }
 
-  useEffect(() => { fetchEstado(fecha) }, [fecha])
+  useEffect(() => { fetchEstado(fecha, tripulacion) }, [fecha, tripulacion])
 
   if (error) return null
 
@@ -86,6 +87,15 @@ function EstadoDia() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <select
+            value={tripulacion}
+            onChange={(e) => setTripulacion(e.target.value)}
+            className="border border-gray-300 rounded-lg px-2 py-1 text-xs outline-none"
+          >
+            <option value="A">Trip. A</option>
+            <option value="B">Trip. B</option>
+            <option value="C">Trip. C</option>
+          </select>
           <input
             type="date"
             value={fecha}
@@ -93,7 +103,7 @@ function EstadoDia() {
             className="border border-gray-300 rounded-lg px-2 py-1 text-xs outline-none"
           />
           <button
-            onClick={() => fetchEstado(fecha)}
+            onClick={() => fetchEstado(fecha, tripulacion)}
             className="bg-blue-600 text-white px-2 py-1 rounded-lg text-xs hover:bg-blue-700"
           >
             🔄
@@ -140,6 +150,7 @@ export default function ManagerPage() {
   const [lineas, setLineas] = useState([])
   const [selectedAreaId, setSelectedAreaId] = useState('')
   const [selectedLineaId, setSelectedLineaId] = useState('')
+  const [selectedTripulacion, setSelectedTripulacion] = useState('')
   const [fechaInicio, setFechaInicio] = useState(firstOfMonth())
   const [fechaFin, setFechaFin] = useState(todayStr())
   const [data, setData] = useState(null)
@@ -153,8 +164,10 @@ export default function ManagerPage() {
       }
       const aId = overrides.areaId !== undefined ? overrides.areaId : selectedAreaId
       const lId = overrides.lineaId !== undefined ? overrides.lineaId : selectedLineaId
+      const trip = overrides.tripulacion !== undefined ? overrides.tripulacion : selectedTripulacion
       if (lId) params.linea_id = lId
       else if (aId) params.area_id = aId
+      if (trip) params.tripulacion = trip
 
       setLoading(true)
       try {
@@ -164,7 +177,7 @@ export default function ManagerPage() {
         setLoading(false)
       }
     },
-    [fechaInicio, fechaFin, selectedAreaId, selectedLineaId]
+    [fechaInicio, fechaFin, selectedAreaId, selectedLineaId, selectedTripulacion]
   )
 
   useEffect(() => {
@@ -200,6 +213,15 @@ export default function ManagerPage() {
       {/* ── Filtros ───────────────────────────────────────────────────────── */}
       <section className="bg-white rounded-2xl shadow p-4">
         <div className="flex flex-wrap gap-3 items-end">
+          <div>
+            <label className="label">Tripulación</label>
+            <select value={selectedTripulacion} onChange={(e) => setSelectedTripulacion(e.target.value)} className="input">
+              <option value="">Todas</option>
+              <option value="A">Tripulación A</option>
+              <option value="B">Tripulación B</option>
+              <option value="C">Tripulación C</option>
+            </select>
+          </div>
           <div>
             <label className="label">Área</label>
             <select value={selectedAreaId} onChange={handleAreaChange} className="input">

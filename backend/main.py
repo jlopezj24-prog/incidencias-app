@@ -42,6 +42,7 @@ class IncidenciaIn(BaseModel):
 class ReporteIn(BaseModel):
     linea_id: int
     fecha: date_type
+    tripulacion: str = "A"
     lideres_presentes: int
     incidencias: List[IncidenciaIn]
 
@@ -55,6 +56,7 @@ def _serialize_reporte(reporte, linea):
         "linea_nombre": linea.nombre,
         "area_nombre": linea.area.nombre,
         "fecha": reporte.fecha.isoformat(),
+        "tripulacion": reporte.tripulacion,
         "lideres_presentes": reporte.lideres_presentes,
         "total_lideres": linea.total_lideres,
         "incidencias": [
@@ -118,7 +120,7 @@ def create_reporte(data: ReporteIn, db: Session = Depends(get_db)):
     if not linea:
         raise HTTPException(status_code=404, detail="Línea no encontrada")
     inc_list = [i.model_dump() for i in data.incidencias]
-    reporte = crud.upsert_reporte(db, data.linea_id, data.fecha, data.lideres_presentes, inc_list)
+    reporte = crud.upsert_reporte(db, data.linea_id, data.fecha, data.tripulacion, data.lideres_presentes, inc_list)
     # Re-fetch linea with area after commit
     linea = crud.get_linea(db, data.linea_id)
     reporte = crud.get_reporte(db, data.linea_id, data.fecha)
@@ -126,8 +128,8 @@ def create_reporte(data: ReporteIn, db: Session = Depends(get_db)):
 
 
 @app.get("/api/reportes")
-def get_reporte(linea_id: int, fecha: date_type, db: Session = Depends(get_db)):
-    reporte = crud.get_reporte(db, linea_id, fecha)
+def get_reporte(linea_id: int, fecha: date_type, tripulacion: str = "A", db: Session = Depends(get_db)):
+    reporte = crud.get_reporte(db, linea_id, fecha, tripulacion)
     if not reporte:
         return None
     linea = crud.get_linea(db, linea_id)
@@ -135,14 +137,14 @@ def get_reporte(linea_id: int, fecha: date_type, db: Session = Depends(get_db)):
 
 
 @app.get("/api/estado-dia")
-def get_estado_dia(fecha: date_type, db: Session = Depends(get_db)):
-    """Devuelve todas las líneas con su estado de carga para una fecha dada."""
+def get_estado_dia(fecha: date_type, tripulacion: str = "A", db: Session = Depends(get_db)):
+    """Devuelve todas las líneas con su estado de carga para una fecha y tripulación dada."""
     lineas = crud.get_lineas(db)
     reportes = {
         r.linea_id: r
         for r in db.query(models.ReporteDiario)
         .options(__import__('sqlalchemy.orm', fromlist=['joinedload']).joinedload(models.ReporteDiario.incidencias))
-        .filter(models.ReporteDiario.fecha == fecha)
+        .filter(models.ReporteDiario.fecha == fecha, models.ReporteDiario.tripulacion == tripulacion)
         .all()
     }
     resultado = []
@@ -172,6 +174,7 @@ def get_estado_dia(fecha: date_type, db: Session = Depends(get_db)):
 def get_dashboard(
     area_id: Optional[int] = None,
     linea_id: Optional[int] = None,
+    tripulacion: Optional[str] = Query(default=None),
     fecha_inicio: Optional[date_type] = Query(default=None),
     fecha_fin: Optional[date_type] = Query(default=None),
     db: Session = Depends(get_db),
@@ -181,7 +184,7 @@ def get_dashboard(
         fecha_inicio = today.replace(day=1)
     if not fecha_fin:
         fecha_fin = today
-    return crud.get_dashboard_data(db, area_id, linea_id, fecha_inicio, fecha_fin)
+    return crud.get_dashboard_data(db, area_id, linea_id, tripulacion, fecha_inicio, fecha_fin)
 
 
 # ── Serve React frontend (production build) ────────────────────────────────────

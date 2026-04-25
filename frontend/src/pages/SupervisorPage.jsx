@@ -27,6 +27,7 @@ export default function SupervisorPage() {
   const [lineas, setLineas] = useState([])
   const [selectedAreaId, setSelectedAreaId] = useState('')
   const [selectedLineaId, setSelectedLineaId] = useState('')
+  const [tripulacion, setTripulacion] = useState('A')
   const [fecha, setFecha] = useState(todayStr())
   const [lideresPresentes, setLideresPresentes] = useState('')
   const [incidencias, setIncidencias] = useState([])
@@ -64,7 +65,7 @@ export default function SupervisorPage() {
     setLoadingReport(true)
     setMessage(null)
     axios
-      .get(`/api/reportes?linea_id=${selectedLineaId}&fecha=${fecha}`)
+      .get(`/api/reportes?linea_id=${selectedLineaId}&fecha=${fecha}&tripulacion=${tripulacion}`)
       .then((r) => {
         if (r.data) {
           setLideresPresentes(r.data.lideres_presentes)
@@ -83,7 +84,7 @@ export default function SupervisorPage() {
         }
       })
       .finally(() => setLoadingReport(false))
-  }, [selectedLineaId, fecha])
+  }, [selectedLineaId, fecha, tripulacion])
 
   const addIncidencia = () => {
     if (newCantidad < 1) return
@@ -115,6 +116,7 @@ export default function SupervisorPage() {
       const r = await axios.post('/api/reportes', {
         linea_id: parseInt(selectedLineaId),
         fecha,
+        tripulacion,
         lideres_presentes: parseInt(lideresPresentes),
         incidencias,
       })
@@ -138,6 +140,18 @@ export default function SupervisorPage() {
       <section className="bg-white rounded-2xl shadow p-5">
         <h2 className="font-semibold text-gray-700 mb-4">1 · Seleccionar línea y fecha</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div>
+            <label className="label">Tripulación</label>
+            <select
+              value={tripulacion}
+              onChange={(e) => setTripulacion(e.target.value)}
+              className="input"
+            >
+              <option value="A">Tripulación A</option>
+              <option value="B">Tripulación B</option>
+              <option value="C">Tripulación C</option>
+            </select>
+          </div>
           <div>
             <label className="label">Área</label>
             <select

@@ -24,7 +24,7 @@ def get_linea(db: Session, linea_id: int):
     )
 
 
-def get_reporte(db: Session, linea_id: int, fecha: date):
+def get_reporte(db: Session, linea_id: int, fecha: date, tripulacion: str = "A"):
     return (
         db.query(models.ReporteDiario)
         .options(
@@ -34,13 +34,14 @@ def get_reporte(db: Session, linea_id: int, fecha: date):
         .filter(
             models.ReporteDiario.linea_id == linea_id,
             models.ReporteDiario.fecha == fecha,
+            models.ReporteDiario.tripulacion == tripulacion,
         )
         .first()
     )
 
 
-def upsert_reporte(db: Session, linea_id: int, fecha: date, lideres_presentes: int, incidencias: list):
-    existing = get_reporte(db, linea_id, fecha)
+def upsert_reporte(db: Session, linea_id: int, fecha: date, tripulacion: str, lideres_presentes: int, incidencias: list):
+    existing = get_reporte(db, linea_id, fecha, tripulacion)
     if existing:
         existing.lideres_presentes = lideres_presentes
         for inc in list(existing.incidencias):
@@ -56,6 +57,7 @@ def upsert_reporte(db: Session, linea_id: int, fecha: date, lideres_presentes: i
         reporte = models.ReporteDiario(
             linea_id=linea_id,
             fecha=fecha,
+            tripulacion=tripulacion,
             lideres_presentes=lideres_presentes,
         )
         db.add(reporte)
@@ -72,6 +74,7 @@ def get_dashboard_data(
     db: Session,
     area_id: Optional[int],
     linea_id: Optional[int],
+    tripulacion: Optional[str],
     fecha_inicio: date,
     fecha_fin: date,
 ):
@@ -89,6 +92,8 @@ def get_dashboard_data(
             models.ReporteDiario.fecha <= fecha_fin,
         )
     )
+    if tripulacion:
+        q = q.filter(models.ReporteDiario.tripulacion == tripulacion)
     if linea_id:
         q = q.filter(models.Linea.id == linea_id)
     elif area_id:
@@ -149,6 +154,8 @@ def get_dashboard_data(
             models.ReporteDiario.fecha <= fecha_fin,
         )
     )
+    if tripulacion:
+        rq_linea = rq_linea.filter(models.ReporteDiario.tripulacion == tripulacion)
     if linea_id:
         rq_linea = rq_linea.filter(models.Linea.id == linea_id)
     elif area_id:
@@ -241,6 +248,8 @@ def get_dashboard_data(
         models.ReporteDiario.fecha >= fecha_inicio,
         models.ReporteDiario.fecha <= fecha_fin,
     )
+    if tripulacion:
+        rq = rq.filter(models.ReporteDiario.tripulacion == tripulacion)
     if linea_id:
         rq = rq.filter(models.Linea.id == linea_id)
     elif area_id:

@@ -26,12 +26,13 @@ class ReporteDiario(Base):
     id = Column(Integer, primary_key=True, index=True)
     linea_id = Column(Integer, ForeignKey("lineas.id"), nullable=False)
     fecha = Column(Date, nullable=False)
+    tripulacion = Column(String, nullable=False, default="A")
     lideres_presentes = Column(Integer, default=0)
     creado_en = Column(DateTime, default=datetime.utcnow)
     actualizado_en = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     linea = relationship("Linea", back_populates="reportes")
     incidencias = relationship("Incidencia", back_populates="reporte", cascade="all, delete-orphan")
-    __table_args__ = (UniqueConstraint("linea_id", "fecha", name="uq_linea_fecha"),)
+    __table_args__ = (UniqueConstraint("linea_id", "fecha", "tripulacion", name="uq_linea_fecha_tripulacion"),)
 
 
 class Incidencia(Base):

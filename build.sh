@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -e
 
+export PYTHON_VERSION=3.11.9
+
 echo "==> Installing Python dependencies..."
+pip install --upgrade pip
 pip install -r backend/requirements.txt
 
 echo "==> Installing frontend dependencies..."

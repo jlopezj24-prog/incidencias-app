@@ -191,6 +191,10 @@ STATIC_DIR = pathlib.Path(__file__).parent / "static"
 if STATIC_DIR.exists():
     app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
 
+    @app.get("/logo.png")
+    async def serve_logo():
+        return FileResponse(str(STATIC_DIR / "logo.png"))
+
     @app.get("/")
     async def serve_root():
         return FileResponse(str(STATIC_DIR / "index.html"))

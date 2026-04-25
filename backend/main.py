@@ -132,7 +132,7 @@ def create_reporte(data: ReporteIn, db: Session = Depends(get_db)):
     reporte = crud.upsert_reporte(db, data.linea_id, data.fecha, data.tripulacion, data.lideres_presentes, inc_list)
     # Re-fetch linea with area after commit
     linea = crud.get_linea(db, data.linea_id)
-    reporte = crud.get_reporte(db, data.linea_id, data.fecha)
+    reporte = crud.get_reporte(db, data.linea_id, data.fecha, data.tripulacion)
     return _serialize_reporte(reporte, linea)
 
 

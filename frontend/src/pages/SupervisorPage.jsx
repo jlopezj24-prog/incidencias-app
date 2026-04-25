@@ -157,8 +157,8 @@ export default function SupervisorPage() {
               <option value="">-- Seleccionar --</option>
               {lineas.map((l) => (
                 <option key={l.id} value={l.id}>
-                  {l.nombre} ({l.total_lideres} líderes)
-                </option>
+                    {l.nombre}
+                  </option>
               ))}
             </select>
           </div>

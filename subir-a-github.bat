@@ -1,24 +1,24 @@
 @echo off
 cd /d C:\Users\SZKBYC\incidencias-app
 
-echo Inicializando repositorio git...
+echo Verificando git...
 git --version
 if errorlevel 1 (
     echo ERROR: Git no esta instalado.
-    echo Descargalo en https://git-scm.com/download/win
     pause
     exit /b
 )
 
 git init
 git add .
-git commit -m "Sistema de Incidencias GM"
+git commit -m "Sistema de Incidencias GM" 2>nul || echo (sin cambios nuevos, continuando...)
 
-echo Conectando con GitHub...
+echo.
+echo Conectando con GitHub (cuenta personal)...
 git branch -M main
-git remote remove origin 2>nul
-git remote add origin https://github.com/SZKBYC_gme/incidencias-app.git
-git push -u origin main
+git remote remove personal 2>nul
+git remote add personal https://github.com/jlopezj24-prog/incidencias-app.git
+git push -u personal main
 
 echo.
 echo listo! Codigo subido a GitHub.

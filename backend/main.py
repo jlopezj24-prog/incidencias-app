@@ -27,6 +27,15 @@ app.add_middleware(
 # Seed DB on startup
 @app.on_event("startup")
 async def startup_event():
+    # Run migrations first
+    with engine.connect() as conn:
+        try:
+            conn.execute(__import__('sqlalchemy').text(
+                "ALTER TABLE reportes_diarios ADD COLUMN tripulacion VARCHAR DEFAULT 'A'"
+            ))
+            conn.commit()
+        except Exception:
+            pass  # Column already exists
     from seed import seed
     seed()
 

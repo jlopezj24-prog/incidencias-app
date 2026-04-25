@@ -275,7 +275,7 @@ export default function ManagerPage() {
       {/* ── KPIs ─────────────────────────────────────────────────────────── */}
       {data && (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-2 gap-4">
             <KPICard
               title="Total incidencias"
               value={data.kpis.total_incidencias}
@@ -283,22 +283,10 @@ export default function ManagerPage() {
               colorClass="border-red-200"
             />
             <KPICard
-              title="Reportes capturados"
-              value={data.kpis.total_reportes}
-              icon="📋"
-              colorClass="border-blue-200"
-            />
-            <KPICard
               title="Líneas afectadas"
               value={data.kpis.lineas_con_incidencias}
               icon="🏭"
               colorClass="border-yellow-200"
-            />
-            <KPICard
-              title="Tipos distintos"
-              value={data.kpis.tipos_distintos}
-              icon="🗂️"
-              colorClass="border-green-200"
             />
           </div>
 

@@ -230,13 +230,19 @@ export default function SupervisorPage() {
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
-            <input
-              type="number"
-              min="1"
-              value={newCantidad}
-              onChange={(e) => setNewCantidad(Math.max(1, parseInt(e.target.value) || 1))}
-              className="input w-20 text-center"
-            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setNewCantidad(c => Math.max(1, c - 1))}
+                className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold w-9 h-9 rounded-lg text-lg flex items-center justify-center"
+              >−</button>
+              <span className="w-8 text-center font-semibold text-lg">{newCantidad}</span>
+              <button
+                type="button"
+                onClick={() => setNewCantidad(c => c + 1)}
+                className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold w-9 h-9 rounded-lg text-lg flex items-center justify-center"
+              >+</button>
+            </div>
             <input
               type="text"
               value={newNotas}

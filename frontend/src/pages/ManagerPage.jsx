@@ -371,8 +371,8 @@ export default function ManagerPage() {
                   {area.pct_lideres_libres !== null && (
                     <div className="mb-3">
                       <div className="flex justify-between text-xs text-gray-500 mb-1">
-                        <span>Lets libres (promedio)</span>
-                        <span className="font-semibold">
+                        <span className="font-bold text-gray-800">Lets libres (promedio)</span>
+                        <span className="font-bold text-gray-800">
                           {area.avg_lideres_presentes} / {area.total_lideres} — {area.pct_lideres_libres}%
                         </span>
                       </div>

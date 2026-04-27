@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
@@ -10,6 +10,7 @@ import models
 import crud
 import pathlib
 import os
+import io
 from database import engine, get_db, Base
 
 Base.metadata.create_all(bind=engine)
@@ -194,6 +195,156 @@ def get_dashboard(
     if not fecha_fin:
         fecha_fin = today
     return crud.get_dashboard_data(db, area_id, linea_id, tripulacion, fecha_inicio, fecha_fin)
+
+
+@app.get("/api/export/excel")
+def export_excel(
+    area_id: Optional[int] = None,
+    linea_id: Optional[int] = None,
+    tripulacion: Optional[str] = Query(default=None),
+    fecha_inicio: Optional[date_type] = Query(default=None),
+    fecha_fin: Optional[date_type] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        raise HTTPException(status_code=500, detail="openpyxl no disponible")
+
+    today = date_type.today()
+    if not fecha_inicio:
+        fecha_inicio = today.replace(day=1)
+    if not fecha_fin:
+        fecha_fin = today
+
+    data = crud.get_dashboard_data(db, area_id, linea_id, tripulacion, fecha_inicio, fecha_fin)
+
+    wb = Workbook()
+
+    # Estilos
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill_blue = PatternFill("solid", fgColor="1E3A5F")
+    header_fill_gray = PatternFill("solid", fgColor="4A4A4A")
+    header_fill_green = PatternFill("solid", fgColor="1A6B3C")
+    center = Alignment(horizontal="center", vertical="center")
+    thin = Border(
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"), bottom=Side(style="thin")
+    )
+
+    def set_header_row(ws, row_num, headers, fill):
+        for col, h in enumerate(headers, 1):
+            cell = ws.cell(row=row_num, column=col, value=h)
+            cell.font = header_font
+            cell.fill = fill
+            cell.alignment = center
+            cell.border = thin
+
+    def style_data_row(ws, row_num, num_cols):
+        fill = PatternFill("solid", fgColor="F0F4FA") if row_num % 2 == 0 else PatternFill("solid", fgColor="FFFFFF")
+        for col in range(1, num_cols + 1):
+            c = ws.cell(row=row_num, column=col)
+            c.border = thin
+            c.fill = fill
+            c.alignment = Alignment(horizontal="center", vertical="center")
+
+    def auto_width(ws, min_w=12, max_w=40):
+        for col in ws.columns:
+            max_len = max((len(str(c.value)) if c.value else 0) for c in col)
+            ws.column_dimensions[get_column_letter(col[0].column)].width = min(max(max_len + 2, min_w), max_w)
+
+    # ── Hoja 1: Resumen por área ────────────────────────────────────────────────
+    ws1 = wb.active
+    ws1.title = "Resumen por Area"
+
+    ws1.merge_cells("A1:F1")
+    title_cell = ws1["A1"]
+    title_cell.value = f"Resumen por Area  |  {fecha_inicio} al {fecha_fin}"
+    title_cell.font = Font(bold=True, size=13, color="1E3A5F")
+    title_cell.alignment = center
+
+    headers1 = ["Area", "Total Incidencias", "Total Lideres", "Lets Libres Prom.", "% Lets Libres", "Tipos de Incidencia"]
+    set_header_row(ws1, 2, headers1, header_fill_blue)
+
+    for i, area in enumerate(data["por_area"], start=3):
+        desglose_str = ", ".join(f'{d["tipo"]}: {d["cantidad"]}' for d in area.get("desglose", []))
+        row = [
+            area["area"],
+            area["total_incidencias"],
+            area["total_lideres"],
+            area.get("avg_lideres_presentes") or "-",
+            f'{area["pct_lideres_libres"]}%' if area.get("pct_lideres_libres") is not None else "-",
+            desglose_str or "Sin incidencias",
+        ]
+        for col, val in enumerate(row, 1):
+            ws1.cell(row=i, column=col, value=val)
+        style_data_row(ws1, i, len(headers1))
+
+    auto_width(ws1)
+
+    # ── Hoja 2: Detalle por línea ────────────────────────────────────────────────
+    ws2 = wb.create_sheet("Detalle por Linea")
+
+    ws2.merge_cells("A1:G1")
+    t2 = ws2["A1"]
+    t2.value = f"Detalle por Linea  |  {fecha_inicio} al {fecha_fin}"
+    t2.font = Font(bold=True, size=13, color="1A6B3C")
+    t2.alignment = center
+
+    headers2 = ["Area", "Linea", "Tripulacion", "Total Incidencias", "Total Lideres", "Lets Libres Prom.", "% Lets Libres"]
+    set_header_row(ws2, 2, headers2, header_fill_green)
+
+    for i, linea in enumerate(data["por_linea"], start=3):
+        row = [
+            linea["area"],
+            linea["linea"],
+            linea.get("tripulacion", "-"),
+            linea["total"],
+            linea["total_lideres"],
+            linea.get("avg_lideres_presentes") or "-",
+            f'{linea["pct_lideres_libres"]}%' if linea.get("pct_lideres_libres") is not None else "-",
+        ]
+        for col, val in enumerate(row, 1):
+            ws2.cell(row=i, column=col, value=val)
+        style_data_row(ws2, i, len(headers2))
+
+    auto_width(ws2)
+
+    # ── Hoja 3: Por tipo de incidencia ─────────────────────────────────────────
+    ws3 = wb.create_sheet("Por Tipo de Incidencia")
+
+    ws3.merge_cells("A1:C1")
+    t3 = ws3["A1"]
+    t3.value = f"Por Tipo de Incidencia  |  {fecha_inicio} al {fecha_fin}"
+    t3.font = Font(bold=True, size=13, color="4A4A4A")
+    t3.alignment = center
+
+    headers3 = ["Tipo de Incidencia", "Total", "% del Total"]
+    set_header_row(ws3, 2, headers3, header_fill_gray)
+
+    total_inc = sum(d["total"] for d in data["por_tipo"]) or 1
+    for i, tipo in enumerate(data["por_tipo"], start=3):
+        pct = round((tipo["total"] / total_inc) * 100, 1)
+        row = [tipo["tipo"], tipo["total"], f"{pct}%"]
+        for col, val in enumerate(row, 1):
+            ws3.cell(row=i, column=col, value=val)
+        style_data_row(ws3, i, len(headers3))
+
+    auto_width(ws3)
+
+    # Guardar en buffer y retornar
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    filename = f"incidencias_{fecha_inicio}_{fecha_fin}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ── Serve React frontend (production build) ────────────────────────────────────

@@ -266,13 +266,30 @@ export default function ManagerPage() {
               className="input"
             />
           </div>
-          <button
-            onClick={() => fetchDashboard()}
-            disabled={loading}
-            className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 font-medium disabled:bg-blue-300 transition-colors"
-          >
-            {loading ? 'Cargando…' : '🔍 Aplicar filtros'}
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => fetchDashboard()}
+              disabled={loading}
+              className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 font-medium disabled:bg-blue-300 transition-colors"
+            >
+              {loading ? 'Cargando…' : '🔍 Aplicar filtros'}
+            </button>
+            <button
+              onClick={() => {
+                const params = new URLSearchParams()
+                params.set('fecha_inicio', fechaInicio)
+                params.set('fecha_fin', fechaFin)
+                if (selectedLineaId) params.set('linea_id', selectedLineaId)
+                else if (selectedAreaId) params.set('area_id', selectedAreaId)
+                if (selectedTripulacion) params.set('tripulacion', selectedTripulacion)
+                window.open(`/api/export/excel?${params.toString()}`, '_blank')
+              }}
+              disabled={loading}
+              className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 font-medium disabled:bg-green-300 transition-colors"
+            >
+              📥 Exportar Excel
+            </button>
+          </div>
         </div>
       </section>
 

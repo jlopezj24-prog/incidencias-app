@@ -128,20 +128,23 @@ def get_dashboard_data(
         linea_nombre = inc.reporte.linea.nombre
         area_nombre = inc.reporte.linea.area.nombre
         total_lideres = inc.reporte.linea.total_lideres
-        if linea_nombre not in linea_data:
-            linea_data[linea_nombre] = {
+        trip = inc.reporte.tripulacion
+        key = f"{linea_nombre}|{trip}"
+        if key not in linea_data:
+            linea_data[key] = {
                 "linea": linea_nombre,
                 "area": area_nombre,
+                "tripulacion": trip,
                 "total": 0,
                 "total_lideres": total_lideres,
                 "lideres_presentes_sum": 0,
                 "reportes_count": 0,
                 "incidencias_por_tipo": {},
             }
-        linea_data[linea_nombre]["total"] += inc.cantidad
+        linea_data[key]["total"] += inc.cantidad
         t = inc.tipo
-        linea_data[linea_nombre]["incidencias_por_tipo"][t] = (
-            linea_data[linea_nombre]["incidencias_por_tipo"].get(t, 0) + inc.cantidad
+        linea_data[key]["incidencias_por_tipo"][t] = (
+            linea_data[key]["incidencias_por_tipo"].get(t, 0) + inc.cantidad
         )
 
     # Agregar datos de líderes desde reportes
@@ -162,19 +165,22 @@ def get_dashboard_data(
         rq_linea = rq_linea.filter(models.Linea.area_id == area_id)
 
     for rep in rq_linea.all():
+        trip = rep.tripulacion
         ln = rep.linea.nombre
-        if ln not in linea_data:
-            linea_data[ln] = {
+        key = f"{ln}|{trip}"
+        if key not in linea_data:
+            linea_data[key] = {
                 "linea": ln,
                 "area": rep.linea.area.nombre,
+                "tripulacion": trip,
                 "total": 0,
                 "total_lideres": rep.linea.total_lideres,
                 "lideres_presentes_sum": 0,
                 "reportes_count": 0,
                 "incidencias_por_tipo": {},
             }
-        linea_data[ln]["lideres_presentes_sum"] += rep.lideres_presentes
-        linea_data[ln]["reportes_count"] += 1
+        linea_data[key]["lideres_presentes_sum"] += rep.lideres_presentes
+        linea_data[key]["reportes_count"] += 1
 
     # Calcular % líderes libres promedio y aplanar incidencias_por_tipo
     for k, v in linea_data.items():

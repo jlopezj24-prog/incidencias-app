@@ -419,6 +419,7 @@ export default function ManagerPage() {
                     <tr>
                       <th className="text-left p-3">Área</th>
                       <th className="text-left p-3">Línea</th>
+                      <th className="text-left p-3">Tripulación</th>
                       <th className="text-center p-3">Total incidencias</th>
                       <th className="text-center p-3">Lets libres</th>
                       <th className="text-left p-3 min-w-[220px]">Desglose por tipo</th>
@@ -429,6 +430,11 @@ export default function ManagerPage() {
                       <tr key={i} className="border-t hover:bg-gray-50 align-top">
                         <td className="p-3 text-gray-500">{row.area}</td>
                         <td className="p-3 font-medium">{row.linea}</td>
+                        <td className="p-3">
+                          <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs font-semibold">
+                            Trip. {row.tripulacion}
+                          </span>
+                        </td>
                         <td className="p-3 text-center">
                           <span className="bg-red-100 text-red-700 px-3 py-0.5 rounded-full font-semibold">
                             {row.total}

@@ -30,6 +30,8 @@ export default function HomePage() {
           <span className="text-sm text-gray-400 text-center mt-1">Dashboard y reportes históricos</span>
         </Link>
       </div>
+
+      <p className="text-xs text-gray-400 mt-4">Desarrollado por Josue Emmanuel Lopez Juarez</p>
     </div>
   )
 }

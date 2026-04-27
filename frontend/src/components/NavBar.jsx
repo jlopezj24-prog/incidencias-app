@@ -5,7 +5,7 @@ export default function NavBar() {
   const link = (to, label) => (
     <Link
       to={to}
-      className={`px-3 py-1 rounded transition-colors ${
+      className={`px-2 py-1 rounded transition-colors text-sm whitespace-nowrap ${
         pathname === to ? 'bg-blue-600' : 'hover:bg-blue-700'
       }`}
     >
@@ -15,14 +15,14 @@ export default function NavBar() {
 
   return (
     <nav className="bg-blue-800 text-white shadow-lg">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="GM Logo" className="h-10 w-10 rounded-lg" />
-          <span className="font-bold text-xl">Incidencias de Producción</span>
+      <div className="max-w-6xl mx-auto px-3 py-2 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <img src="/logo.png" alt="GM Logo" className="h-8 w-8 rounded-lg flex-shrink-0" />
+          <span className="font-bold text-sm sm:text-xl truncate">Incidencias de Producción</span>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-1 sm:gap-3 flex-shrink-0">
           {link('/', 'Inicio')}
-          {link('/supervisor', '👷 Líder de Grupo')}
+          {link('/supervisor', '👷 Líder')}
           {link('/gerente', '📊 Gerente')}
         </div>
       </div>

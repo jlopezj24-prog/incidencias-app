@@ -183,9 +183,13 @@ export default function ManagerPage() {
   useEffect(() => {
     axios.get('/api/areas').then((r) => setAreas(r.data))
     axios.get('/api/lineas').then((r) => setLineas(r.data))
-    fetchDashboard()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    fetchDashboard()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fechaInicio, fechaFin])
 
   const filteredLineas = selectedAreaId
     ? lineas.filter((l) => l.area_id == selectedAreaId)

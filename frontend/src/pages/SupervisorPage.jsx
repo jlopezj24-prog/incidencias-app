@@ -13,6 +13,7 @@ const TIPOS_INCIDENCIA = [
   'Vacaciones',
   'Sanciones',
   'Incapacidad',
+  'Restricción Médica',
 ]
 
 const todayStr = () => {

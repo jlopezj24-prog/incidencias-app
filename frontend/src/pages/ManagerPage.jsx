@@ -59,7 +59,16 @@ function EstadoDia() {
 
   useEffect(() => { fetchEstado(fecha, tripulacion) }, [fecha, tripulacion])
 
+  // Auto-refresh cada 60 segundos
+  useEffect(() => {
+    const interval = setInterval(() => fetchEstado(fecha, tripulacion), 60000)
+    return () => clearInterval(interval)
+  }, [fecha, tripulacion])
+
   if (error) return null
+
+  const pendientes = estado ? estado.lineas.filter(l => !l.cargado) : []
+  const cargadas = estado ? estado.lineas.filter(l => l.cargado) : []
 
   // Agrupar por área
   const porArea = estado
@@ -71,17 +80,17 @@ function EstadoDia() {
     : {}
 
   return (
-    <div className="bg-white rounded-2xl shadow p-3">
+    <div className="bg-white rounded-2xl shadow p-4">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-3">
           <h2 className="font-bold text-gray-800 text-sm">Estado del día</h2>
           {estado && (
             <div className="flex gap-2">
               <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-semibold">
-                OK {estado.resumen.cargados} cargadas
+                ✅ {estado.resumen.cargados} cargadas
               </span>
-              <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs font-semibold">
-                PEND {estado.resumen.pendientes} pendientes
+              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${pendientes.length > 0 ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-gray-100 text-gray-400'}`}>
+                {pendientes.length > 0 ? `⚠️ ${pendientes.length} pendientes` : '✔ Sin pendientes'}
               </span>
             </div>
           )}
@@ -110,6 +119,26 @@ function EstadoDia() {
           </button>
         </div>
       </div>
+
+      {/* Banner de pendientes */}
+      {pendientes.length > 0 && (
+        <div className="mb-3 bg-red-50 border border-red-200 rounded-xl p-3">
+          <p className="text-xs font-bold text-red-700 mb-2">🚨 Líneas que NO han reportado:</p>
+          <div className="flex flex-wrap gap-1">
+            {pendientes.map(l => (
+              <span key={l.linea_id} className="bg-red-100 border border-red-300 text-red-800 text-xs font-semibold px-2 py-1 rounded-lg">
+                {l.area} · {l.linea}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {estado && pendientes.length === 0 && (
+        <div className="mb-3 bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+          <p className="text-sm font-bold text-green-700">✅ Todas las líneas han reportado el día de hoy</p>
+        </div>
+      )}
 
       {estado && (
         <div className="flex flex-wrap gap-3">
@@ -155,6 +184,8 @@ export default function ManagerPage() {
   const [fechaFin, setFechaFin] = useState(todayStr())
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [tendenciaLinea, setTendenciaLinea] = useState(null) // { linea, tripulacion, datos }
+  const [loadingTendencia, setLoadingTendencia] = useState(false)
 
   const fetchDashboard = useCallback(
     async (overrides = {}) => {
@@ -190,6 +221,38 @@ export default function ManagerPage() {
     fetchDashboard()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fechaInicio, fechaFin])
+
+  const openTendencia = async (row) => {
+    setLoadingTendencia(true)
+    setTendenciaLinea({ linea: row.linea, tripulacion: row.tripulacion, datos: null })
+    try {
+      const r = await axios.get('/api/dashboard', {
+        params: {
+          fecha_inicio: fechaInicio,
+          fecha_fin: fechaFin,
+          tripulacion: row.tripulacion || undefined,
+        }
+      })
+      // Filtrar por_dia ya existe, pero necesitamos datos sólo de esta línea
+      // Re-fetching con linea_id buscado del array lineas
+      const lineaObj = lineas.find(l => l.nombre === row.linea)
+      if (lineaObj) {
+        const r2 = await axios.get('/api/dashboard', {
+          params: {
+            fecha_inicio: fechaInicio,
+            fecha_fin: fechaFin,
+            linea_id: lineaObj.id,
+            tripulacion: row.tripulacion || undefined,
+          }
+        })
+        setTendenciaLinea({ linea: row.linea, tripulacion: row.tripulacion, datos: r2.data })
+      } else {
+        setTendenciaLinea({ linea: row.linea, tripulacion: row.tripulacion, datos: r.data })
+      }
+    } finally {
+      setLoadingTendencia(false)
+    }
+  }
 
   const filteredLineas = selectedAreaId
     ? lineas.filter((l) => l.area_id == selectedAreaId)
@@ -444,9 +507,9 @@ export default function ManagerPage() {
                   </thead>
                   <tbody>
                     {data.por_linea.map((row, i) => (
-                      <tr key={i} className="border-t hover:bg-gray-50 align-top">
+                      <tr key={i} onClick={() => openTendencia(row)} className="border-t hover:bg-blue-50 align-top cursor-pointer transition-colors">
                         <td className="p-3 text-gray-500">{row.area}</td>
-                        <td className="p-3 font-medium">{row.linea}</td>
+                        <td className="p-3 font-medium text-blue-700 underline decoration-dotted">{row.linea}</td>
                         <td className="p-3">
                           <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs font-semibold">
                             Trip. {row.tripulacion}
@@ -517,6 +580,90 @@ export default function ManagerPage() {
         <div className="bg-white rounded-2xl shadow p-12 text-center text-blue-400">
           <div className="text-5xl mb-3 animate-spin">⏳</div>
           <p>Cargando datos…</p>
+        </div>
+      )}
+
+      {/* ── Modal tendencia por línea ─────────────────────────────────────── */}
+      {tendenciaLinea && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => setTendenciaLinea(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-800">
+                  📈 Tendencia — {tendenciaLinea.linea}
+                </h2>
+                <p className="text-xs text-gray-400">
+                  Trip. {tendenciaLinea.tripulacion} · {fechaInicio} al {fechaFin}
+                </p>
+              </div>
+              <button
+                onClick={() => setTendenciaLinea(null)}
+                className="text-gray-400 hover:text-gray-700 text-2xl font-bold"
+              >×</button>
+            </div>
+
+            {loadingTendencia && (
+              <div className="text-center py-10 text-blue-400">
+                <div className="text-4xl animate-spin mb-2">⏳</div>
+                <p>Cargando tendencia…</p>
+              </div>
+            )}
+
+            {!loadingTendencia && tendenciaLinea.datos && (
+              <>
+                {tendenciaLinea.datos.por_dia.length > 0 ? (
+                  <div className="h-56">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={tendenciaLinea.datos.por_dia} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="fecha" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} name="Total incidencias" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-300">
+                    <p className="text-3xl mb-2">📭</p>
+                    <p>Sin incidencias en este período</p>
+                  </div>
+                )}
+
+                {tendenciaLinea.datos.por_tipo.length > 0 && (
+                  <div className="mt-4">
+                    <h3 className="text-sm font-semibold text-gray-600 mb-2">Desglose por tipo</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {tendenciaLinea.datos.por_tipo.map((t, i) => (
+                        <span key={i} className="bg-blue-50 text-blue-700 border border-blue-100 px-3 py-1 rounded-full text-sm font-semibold">
+                          {t.total} {t.tipo}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {tendenciaLinea.datos.kpis && (
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="bg-gray-50 rounded-xl p-3 text-center">
+                      <p className="text-2xl font-bold text-red-600">{tendenciaLinea.datos.kpis.total_incidencias}</p>
+                      <p className="text-xs text-gray-500">Total incidencias</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-3 text-center">
+                      <p className="text-2xl font-bold text-blue-600">{tendenciaLinea.datos.kpis.tipos_distintos}</p>
+                      <p className="text-xs text-gray-500">Tipos distintos</p>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

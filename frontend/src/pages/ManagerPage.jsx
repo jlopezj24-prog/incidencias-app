@@ -279,6 +279,29 @@ export default function ManagerPage() {
 
       {/* ── Filtros ───────────────────────────────────────────────────────── */}
       <section className="bg-white rounded-2xl shadow p-4">
+        {/* Botones de período rápido */}
+        <div className="flex gap-2 flex-wrap mb-3">
+          <span className="text-xs text-gray-500 self-center font-medium">Período rápido:</span>
+          {[
+            { label: '📅 Hoy', fn: () => { const t = todayStr(); setFechaInicio(t); setFechaFin(t) } },
+            { label: '📆 Esta semana', fn: () => {
+              const now = new Date(); const day = now.getDay() || 7
+              const mon = new Date(now); mon.setDate(now.getDate() - day + 1)
+              const offset = now.getTimezoneOffset()
+              const toStr = d => new Date(d.getTime() - offset * 60000).toISOString().slice(0, 10)
+              setFechaInicio(toStr(mon)); setFechaFin(todayStr())
+            }},
+            { label: '🗓️ Este mes', fn: () => { setFechaInicio(firstOfMonth()); setFechaFin(todayStr()) } },
+          ].map(({ label, fn }) => (
+            <button
+              key={label}
+              onClick={() => { fn(); setTimeout(() => fetchDashboard(), 50) }}
+              className="bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1 rounded-lg text-xs font-semibold hover:bg-blue-100 transition-colors"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap gap-3 items-end">
           <div>
             <label className="label">Tripulación</label>

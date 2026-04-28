@@ -180,6 +180,59 @@ def get_estado_dia(fecha: date_type, tripulacion: str = "A", db: Session = Depen
 
 
 
+@app.get("/api/colaboradores")
+def get_colaboradores(
+    area_id: Optional[int] = None,
+    linea_id: Optional[int] = None,
+    tripulacion: Optional[str] = Query(default=None),
+    fecha_inicio: Optional[date_type] = Query(default=None),
+    fecha_fin: Optional[date_type] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    """Devuelve incidencias de Incapacidad y Restricción Médica con nombre de colaborador."""
+    today = date_type.today()
+    if not fecha_inicio:
+        fecha_inicio = today.replace(day=1)
+    if not fecha_fin:
+        fecha_fin = today
+
+    q = (
+        db.query(models.Incidencia)
+        .options(
+            __import__('sqlalchemy.orm', fromlist=['joinedload']).joinedload(models.Incidencia.reporte)
+            .joinedload(models.ReporteDiario.linea)
+            .joinedload(models.Linea.area)
+        )
+        .join(models.ReporteDiario)
+        .join(models.Linea)
+        .filter(
+            models.ReporteDiario.fecha >= fecha_inicio,
+            models.ReporteDiario.fecha <= fecha_fin,
+            models.Incidencia.tipo.in_(["Incapacidad", "Restricción Médica"]),
+            models.Incidencia.notas != None,
+            models.Incidencia.notas != "",
+        )
+    )
+    if tripulacion:
+        q = q.filter(models.ReporteDiario.tripulacion == tripulacion)
+    if linea_id:
+        q = q.filter(models.Linea.id == linea_id)
+    elif area_id:
+        q = q.filter(models.Linea.area_id == area_id)
+
+    resultados = []
+    for inc in q.order_by(models.ReporteDiario.fecha.desc()).all():
+        resultados.append({
+            "fecha": inc.reporte.fecha.isoformat(),
+            "area": inc.reporte.linea.area.nombre,
+            "linea": inc.reporte.linea.nombre,
+            "tripulacion": inc.reporte.tripulacion,
+            "tipo": inc.tipo,
+            "colaborador": inc.notas,
+        })
+    return resultados
+
+
 @app.get("/api/dashboard")
 def get_dashboard(
     area_id: Optional[int] = None,

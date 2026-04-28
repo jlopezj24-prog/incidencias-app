@@ -36,6 +36,8 @@ export default function SupervisorPage() {
   const [newTipo, setNewTipo] = useState(TIPOS_INCIDENCIA[0])
   const [newCantidad, setNewCantidad] = useState(1)
   const [newNotas, setNewNotas] = useState('')
+  const [newColaborador, setNewColaborador] = useState('')
+  const [newRestriccionTipo, setNewRestriccionTipo] = useState('Opera Parcialmente')
 
   const [savedReport, setSavedReport] = useState(null)
   const [loadingReport, setLoadingReport] = useState(false)
@@ -89,21 +91,38 @@ export default function SupervisorPage() {
 
   const addIncidencia = () => {
     if (newCantidad < 1) return
+    // Construir notas automáticamente para tipos especiales
+    let notaFinal = newNotas
+    const esEspecial = newTipo === 'Incapacidad' || newTipo === 'Restricción Médica'
+    if (esEspecial && newColaborador.trim()) {
+      notaFinal = newColaborador.trim()
+      if (newTipo === 'Restricción Médica') {
+        notaFinal += ` — ${newRestriccionTipo}`
+      }
+    } else if (newTipo === 'Restricción Médica' && !newColaborador.trim()) {
+      notaFinal = newRestriccionTipo
+    }
     setIncidencias((prev) => {
+      // Para tipos especiales no agrupamos, cada entrada es individual con su colaborador
+      if (esEspecial && newColaborador.trim()) {
+        return [...prev, { tipo: newTipo, cantidad: newCantidad, notas: notaFinal }]
+      }
       const existing = prev.find((i) => i.tipo === newTipo)
       if (existing) {
         return prev.map((i) =>
           i.tipo === newTipo ? { ...i, cantidad: i.cantidad + newCantidad } : i
         )
       }
-      return [...prev, { tipo: newTipo, cantidad: newCantidad, notas: newNotas }]
+      return [...prev, { tipo: newTipo, cantidad: newCantidad, notas: notaFinal }]
     })
     setNewCantidad(1)
     setNewNotas('')
+    setNewColaborador('')
+    setNewRestriccionTipo('Opera Parcialmente')
   }
 
-  const removeIncidencia = (tipo) => {
-    setIncidencias((prev) => prev.filter((i) => i.tipo !== tipo))
+  const removeIncidencia = (index) => {
+    setIncidencias((prev) => prev.filter((_, i) => i !== index))
   }
 
   const handleSave = async () => {
@@ -224,7 +243,7 @@ export default function SupervisorPage() {
           <div className="flex flex-wrap gap-3 mb-4">
             <select
               value={newTipo}
-              onChange={(e) => setNewTipo(e.target.value)}
+              onChange={(e) => { setNewTipo(e.target.value); setNewColaborador(''); setNewRestriccionTipo('Opera Parcialmente') }}
               className="input flex-1 min-w-[200px]"
             >
               {TIPOS_INCIDENCIA.map((t) => (
@@ -244,13 +263,37 @@ export default function SupervisorPage() {
                 className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold w-9 h-9 rounded-lg text-lg flex items-center justify-center"
               >+</button>
             </div>
-            <input
-              type="text"
-              value={newNotas}
-              onChange={(e) => setNewNotas(e.target.value)}
-              placeholder="Notas (opcional)"
-              className="input flex-1 min-w-[140px]"
-            />
+            {/* Campo de colaborador solo para Incapacidad y Restricción Médica */}
+            {(newTipo === 'Incapacidad' || newTipo === 'Restricción Médica') && (
+              <input
+                type="text"
+                value={newColaborador}
+                onChange={(e) => setNewColaborador(e.target.value)}
+                placeholder="Nombre del colaborador"
+                className="input flex-1 min-w-[180px] border-amber-300 focus:border-amber-500"
+              />
+            )}
+            {/* Selector Opera/Sin Operación solo para Restricción Médica */}
+            {newTipo === 'Restricción Médica' && (
+              <select
+                value={newRestriccionTipo}
+                onChange={(e) => setNewRestriccionTipo(e.target.value)}
+                className="input min-w-[180px] border-orange-300 focus:border-orange-500"
+              >
+                <option value="Opera Parcialmente">Opera Parcialmente</option>
+                <option value="Sin Operación">Sin Operación</option>
+              </select>
+            )}
+            {/* Notas para otros tipos */}
+            {newTipo !== 'Incapacidad' && newTipo !== 'Restricción Médica' && (
+              <input
+                type="text"
+                value={newNotas}
+                onChange={(e) => setNewNotas(e.target.value)}
+                placeholder="Notas (opcional)"
+                className="input flex-1 min-w-[140px]"
+              />
+            )}
             <button
               onClick={addIncidencia}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium"
@@ -265,7 +308,7 @@ export default function SupervisorPage() {
                 <tr>
                   <th className="text-left p-3">Tipo de incidencia</th>
                   <th className="text-center p-3">Cantidad</th>
-                  <th className="text-left p-3">Notas</th>
+                  <th className="text-left p-3">Colaborador / Notas</th>
                   <th className="p-3"></th>
                 </tr>
               </thead>
@@ -274,10 +317,10 @@ export default function SupervisorPage() {
                   <tr key={i} className="border-t hover:bg-gray-50">
                     <td className="p-3">{inc.tipo}</td>
                     <td className="p-3 text-center font-semibold text-blue-700">{inc.cantidad}</td>
-                    <td className="p-3 text-gray-400 text-xs">{inc.notas}</td>
+                    <td className="p-3 text-gray-500 text-xs">{inc.notas}</td>
                     <td className="p-3 text-right">
                       <button
-                        onClick={() => removeIncidencia(inc.tipo)}
+                        onClick={() => removeIncidencia(i)}
                         className="text-red-400 hover:text-red-600 font-bold"
                       >
                         ✕

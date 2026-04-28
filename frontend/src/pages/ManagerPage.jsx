@@ -184,8 +184,9 @@ export default function ManagerPage() {
   const [fechaFin, setFechaFin] = useState(todayStr())
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [tendenciaLinea, setTendenciaLinea] = useState(null) // { linea, tripulacion, datos }
+  const [tendenciaLinea, setTendenciaLinea] = useState(null)
   const [loadingTendencia, setLoadingTendencia] = useState(false)
+  const [colaboradores, setColaboradores] = useState([])
 
   const fetchDashboard = useCallback(
     async (overrides = {}) => {
@@ -204,6 +205,9 @@ export default function ManagerPage() {
       try {
         const r = await axios.get('/api/dashboard', { params })
         setData(r.data)
+        // También cargar colaboradores con los mismos filtros
+        const r2 = await axios.get('/api/colaboradores', { params })
+        setColaboradores(r2.data)
       } finally {
         setLoading(false)
       }
@@ -612,6 +616,51 @@ export default function ManagerPage() {
         <div className="bg-white rounded-2xl shadow p-12 text-center text-blue-400">
           <div className="text-5xl mb-3 animate-spin">⏳</div>
           <p>Cargando datos…</p>
+        </div>
+      )}
+
+      {/* ── Tabla colaboradores (Incapacidad / Restricción Médica) ─────────── */}
+      {colaboradores.length > 0 && (
+        <div className="bg-white rounded-2xl shadow p-5">
+          <h2 className="font-semibold text-gray-700 mb-4">🧑‍⚕️ Colaboradores con Incapacidad / Restricción Médica</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="text-left p-3">Fecha</th>
+                  <th className="text-left p-3">Área</th>
+                  <th className="text-left p-3">Línea</th>
+                  <th className="text-center p-3">Trip.</th>
+                  <th className="text-left p-3">Tipo</th>
+                  <th className="text-left p-3">Colaborador / Detalle</th>
+                </tr>
+              </thead>
+              <tbody>
+                {colaboradores.map((c, i) => (
+                  <tr key={i} className={`border-t ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                    <td className="p-3 text-gray-500 whitespace-nowrap">{c.fecha}</td>
+                    <td className="p-3 text-gray-500">{c.area}</td>
+                    <td className="p-3 font-medium">{c.linea}</td>
+                    <td className="p-3 text-center">
+                      <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs font-semibold">
+                        {c.tripulacion}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                        c.tipo === 'Incapacidad'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-orange-100 text-orange-700'
+                      }`}>
+                        {c.tipo}
+                      </span>
+                    </td>
+                    <td className="p-3 font-medium text-gray-800">{c.colaborador}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

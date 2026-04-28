@@ -359,58 +359,6 @@ export default function ManagerPage() {
       {/* ── KPIs ─────────────────────────────────────────────────────────── */}
       {data && (
         <>
-          {/* ── Gráficas ─────────────────────────────────────────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {/* Barras por tipo */}
-            <div className="bg-white rounded-2xl shadow p-5">
-              <h2 className="font-semibold text-gray-700 mb-4">Incidencias por tipo</h2>
-              {data.por_tipo.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={data.por_tipo} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" allowDecimals={false} />
-                    <YAxis
-                      type="category"
-                      dataKey="tipo"
-                      width={140}
-                      tick={{ fontSize: 11 }}
-                    />
-                    <Tooltip />
-                    <Bar dataKey="total" name="Cantidad" fill="#3b82f6" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <EmptyState />
-              )}
-            </div>
-
-            {/* Tendencia diaria */}
-            <div className="bg-white rounded-2xl shadow p-5">
-              <h2 className="font-semibold text-gray-700 mb-4">Tendencia diaria</h2>
-              {data.por_dia.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={data.por_dia}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    <Line
-                      type="monotone"
-                      dataKey="total"
-                      name="Total"
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
-                      activeDot={{ r: 6 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <EmptyState />
-              )}
-            </div>
-          </div>
-
           {/* ── Tarjetas resumen por tipo ────────────────────────────────── */}
           {data.por_tipo.length > 0 && (
             <div className="bg-white rounded-2xl shadow p-5">
@@ -488,6 +436,67 @@ export default function ManagerPage() {
               ))}
             </div>
           )}
+
+          {/* ── Tabla resumen por tipo y área ──────────────────────────── */}
+          {data.por_area && data.por_area.length > 0 && (() => {
+            // Construir mapa tipo -> { total, por_area }
+            const tipoMap = {}
+            data.por_area.forEach(area => {
+              area.desglose.forEach(d => {
+                if (!tipoMap[d.tipo]) tipoMap[d.tipo] = { total: 0, areas: {} }
+                tipoMap[d.tipo].total += d.cantidad
+                tipoMap[d.tipo].areas[area.area] = (tipoMap[d.tipo].areas[area.area] || 0) + d.cantidad
+              })
+            })
+            const tipos = Object.entries(tipoMap).sort((a, b) => b[1].total - a[1].total)
+            const areaNombres = data.por_area.map(a => a.area)
+            const grandTotal = tipos.reduce((s, [, v]) => s + v.total, 0)
+            if (tipos.length === 0) return null
+            return (
+              <div className="bg-white rounded-2xl shadow p-5">
+                <h2 className="font-semibold text-gray-700 mb-4">📋 Resumen de incidencias por área</h2>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b-2 border-gray-200">
+                        <th className="text-left p-3 font-bold text-gray-700">Tipo de incidencia</th>
+                        <th className="text-center p-3 font-bold text-gray-900">
+                          Total <span className="text-blue-600 text-base">{grandTotal}</span>
+                        </th>
+                        {areaNombres.map(a => (
+                          <th key={a} className="text-center p-3 font-bold text-gray-700">{a}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tipos.map(([tipo, v], i) => (
+                        <tr key={i} className={`border-t ${i % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}>
+                          <td className="p-3 text-gray-700">{tipo}</td>
+                          <td className="p-3 text-center font-bold text-blue-600">{v.total}</td>
+                          {areaNombres.map(a => (
+                            <td key={a} className="p-3 text-center text-gray-600">
+                              {v.areas[a] || 0}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-gray-300 bg-gray-100">
+                        <td className="p-3 font-bold text-gray-700">Total</td>
+                        <td className="p-3 text-center font-bold text-blue-700">{grandTotal}</td>
+                        {areaNombres.map(a => (
+                          <td key={a} className="p-3 text-center font-bold text-gray-700">
+                            {data.por_area.find(x => x.area === a)?.total_incidencias || 0}
+                          </td>
+                        ))}
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* ── Tabla por línea ──────────────────────────────────────────── */}
           <div className="bg-white rounded-2xl shadow p-5">
@@ -580,6 +589,40 @@ export default function ManagerPage() {
         <div className="bg-white rounded-2xl shadow p-12 text-center text-blue-400">
           <div className="text-5xl mb-3 animate-spin">⏳</div>
           <p>Cargando datos…</p>
+        </div>
+      )}
+
+      {/* ── Gráficas (al final) ───────────────────────────────────────────── */}
+      {data && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="bg-white rounded-2xl shadow p-5">
+            <h2 className="font-semibold text-gray-700 mb-4">Incidencias por tipo</h2>
+            {data.por_tipo.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={data.por_tipo} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" allowDecimals={false} />
+                  <YAxis type="category" dataKey="tipo" width={140} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar dataKey="total" name="Cantidad" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : <EmptyState />}
+          </div>
+          <div className="bg-white rounded-2xl shadow p-5">
+            <h2 className="font-semibold text-gray-700 mb-4">Tendencia diaria</h2>
+            {data.por_dia.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={data.por_dia}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="total" name="Total" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : <EmptyState />}
+          </div>
         </div>
       )}
 

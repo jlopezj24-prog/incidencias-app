@@ -41,6 +41,167 @@ function EmptyState() {
   )
 }
 
+const TIPOS_ENSAMBLE = [
+  { key: 'Falta Injustificada',   label: 'FI' },
+  { key: 'Retardo',               label: 'RET' },
+  { key: 'Permiso Sin Goce',      label: 'PSG' },
+  { key: 'Permiso Por Paternidad',label: 'PAT' },
+  { key: 'Permiso por Defuncion', label: 'DEF' },
+  { key: 'Baja',                  label: 'BAJA' },
+  { key: 'Servicio Medico',       label: 'SM' },
+  { key: 'Vacaciones',            label: 'VAC' },
+  { key: 'Incapacidad',           label: 'INC' },
+  { key: 'Restricción Médica',    label: 'RM' },
+  { key: 'Embarazada',            label: 'EMB' },
+  { key: 'Sanciones',             label: 'SANC' },
+]
+
+function sumaArea(lineas, field) {
+  return lineas.reduce((s, l) => s + (l[field] || 0), 0)
+}
+function sumaIncArea(lineas, key) {
+  return lineas.reduce((s, l) => s + (l.incidencias[key] || 0), 0)
+}
+
+function TablaEnsamble({ data, tripulacion }) {
+  const grandLineas = data.flatMap(a => a.lineas)
+  const thCls = 'px-2 py-1.5 text-center text-xs font-bold uppercase whitespace-nowrap border border-blue-800'
+  const tdCls = (bold) => `px-2 py-1 text-center text-xs border border-gray-200 ${bold ? 'font-bold' : ''}`
+  const tdName = 'px-2 py-1 text-xs font-medium border border-gray-200 whitespace-nowrap'
+  const trTotal = 'bg-blue-900 text-white'
+  const trGrand = 'bg-gray-700 text-white'
+
+  return (
+    <div className="bg-white rounded-2xl shadow overflow-hidden">
+      {/* Título */}
+      <div className="bg-blue-900 text-white px-5 py-3 text-center font-bold text-sm uppercase tracking-widest">
+        INCIDENCIAS ENSAMBLE{tripulacion ? ` — TRIPULACIÓN ${tripulacion}` : ''}
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="text-xs w-full border-collapse">
+          <thead>
+            <tr className="bg-blue-900 text-white">
+              <th className={thCls + ' text-left sticky left-0 bg-blue-900 z-10 min-w-[110px]'}>LÍNEA</th>
+              <th className={thCls}>AUT.</th>
+              <th className={thCls}>LETS AUT.</th>
+              <th className={thCls}>POOL</th>
+              <th className={thCls + ' bg-blue-700'}>TOTAL AUT.</th>
+              <th className={thCls + ' bg-green-700'}>LETS LIBRES</th>
+              {TIPOS_ENSAMBLE.map(t => <th key={t.key} className={thCls}>{t.label}</th>)}
+              <th className={thCls + ' bg-yellow-600'}>TOTAL INC.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((area) => {
+              const aLns = area.lineas
+              return (
+                <>
+                  {/* Filas de líneas */}
+                  {aLns.map((l, i) => (
+                    <tr key={l.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      <td className={tdName + ' sticky left-0 bg-inherit z-10'}>{l.nombre}</td>
+                      <td className={tdCls()}>{l.personas_autorizadas || '—'}</td>
+                      <td className={tdCls()}>{l.total_lideres || '—'}</td>
+                      <td className={tdCls()}>{l.pool_autorizado || '—'}</td>
+                      <td className={tdCls(true) + ' bg-blue-50'}>{l.total_autorizado || '—'}</td>
+                      <td className={tdCls(true) + ' bg-green-50 text-green-800'}>{l.lets_libres}</td>
+                      {TIPOS_ENSAMBLE.map(t => (
+                        <td key={t.key} className={tdCls()}>
+                          {l.incidencias[t.key] ? l.incidencias[t.key] : ''}
+                        </td>
+                      ))}
+                      <td className={tdCls(true) + ' bg-yellow-50 text-yellow-800'}>
+                        {l.total_incidencias || ''}
+                      </td>
+                    </tr>
+                  ))}
+                  {/* Fila total por área */}
+                  <tr className={trTotal}>
+                    <td className="px-2 py-1 text-xs font-bold border border-blue-700 sticky left-0 bg-blue-900 z-10">
+                      TOTAL {area.area.toUpperCase()}
+                    </td>
+                    <td className="px-2 py-1 text-center text-xs font-bold border border-blue-700">
+                      {sumaArea(aLns, 'personas_autorizadas')}
+                    </td>
+                    <td className="px-2 py-1 text-center text-xs font-bold border border-blue-700">
+                      {sumaArea(aLns, 'total_lideres')}
+                    </td>
+                    <td className="px-2 py-1 text-center text-xs font-bold border border-blue-700">
+                      {sumaArea(aLns, 'pool_autorizado')}
+                    </td>
+                    <td className="px-2 py-1 text-center text-xs font-bold border border-blue-700 bg-blue-700">
+                      {sumaArea(aLns, 'total_autorizado')}
+                    </td>
+                    <td className="px-2 py-1 text-center text-xs font-bold border border-blue-700 bg-green-700">
+                      {sumaArea(aLns, 'lets_libres')}
+                    </td>
+                    {TIPOS_ENSAMBLE.map(t => (
+                      <td key={t.key} className="px-2 py-1 text-center text-xs font-bold border border-blue-700">
+                        {sumaIncArea(aLns, t.key) || ''}
+                      </td>
+                    ))}
+                    <td className="px-2 py-1 text-center text-xs font-bold border border-blue-700 bg-yellow-600">
+                      {sumaArea(aLns, 'total_incidencias')}
+                    </td>
+                  </tr>
+                </>
+              )
+            })}
+
+            {/* TOTAL GA */}
+            <tr className={trGrand}>
+              <td className="px-2 py-1 text-xs font-bold border border-gray-500 sticky left-0 bg-gray-700 z-10">
+                TOTAL GA
+              </td>
+              <td className="px-2 py-1 text-center text-xs font-bold border border-gray-500">
+                {sumaArea(grandLineas, 'personas_autorizadas')}
+              </td>
+              <td className="px-2 py-1 text-center text-xs font-bold border border-gray-500">
+                {sumaArea(grandLineas, 'total_lideres')}
+              </td>
+              <td className="px-2 py-1 text-center text-xs font-bold border border-gray-500">
+                {sumaArea(grandLineas, 'pool_autorizado')}
+              </td>
+              <td className="px-2 py-1 text-center text-xs font-bold border border-gray-500">
+                {sumaArea(grandLineas, 'total_autorizado')}
+              </td>
+              <td className="px-2 py-1 text-center text-xs font-bold border border-gray-500">
+                {sumaArea(grandLineas, 'lets_libres')}
+              </td>
+              {TIPOS_ENSAMBLE.map(t => (
+                <td key={t.key} className="px-2 py-1 text-center text-xs font-bold border border-gray-500">
+                  {sumaIncArea(grandLineas, t.key) || ''}
+                </td>
+              ))}
+              <td className="px-2 py-1 text-center text-xs font-bold border border-gray-500 bg-yellow-500 text-gray-900">
+                {sumaArea(grandLineas, 'total_incidencias')}
+              </td>
+            </tr>
+
+            {/* % LETS LIBRES */}
+            <tr className="bg-gray-100 text-gray-700">
+              <td className="px-2 py-1 text-xs font-bold border border-gray-300 sticky left-0 bg-gray-100 z-10">
+                % LETS LIBRES
+              </td>
+              <td colSpan={3} className="border border-gray-300"></td>
+              <td colSpan={2} className="px-2 py-1 text-center text-xs font-bold border border-gray-300 text-green-700">
+                {(() => {
+                  const totalLets = sumaArea(grandLineas, 'total_lideres')
+                  const libres = sumaArea(grandLineas, 'lets_libres')
+                  if (!totalLets) return '—'
+                  return `${((libres / totalLets) * 100).toFixed(1)}%`
+                })()}
+              </td>
+              <td colSpan={TIPOS_ENSAMBLE.length + 1} className="border border-gray-300"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function EstadoDia() {
   const [fecha, setFecha] = useState(todayStr())
   const [tripulacion, setTripulacion] = useState('A')
@@ -187,6 +348,7 @@ export default function ManagerPage() {
   const [tendenciaLinea, setTendenciaLinea] = useState(null)
   const [loadingTendencia, setLoadingTendencia] = useState(false)
   const [colaboradores, setColaboradores] = useState([])
+  const [ensambleData, setEnsambleData] = useState(null)
 
   const fetchDashboard = useCallback(
     async (overrides = {}) => {
@@ -208,6 +370,14 @@ export default function ManagerPage() {
         // También cargar colaboradores con los mismos filtros
         const r2 = await axios.get('/api/colaboradores', { params })
         setColaboradores(r2.data)
+        // Cargar datos de plantilla ensamble (solo por fecha/tripulacion, sin filtro de línea/área)
+        const ensambleParams = {
+          fecha_inicio: params.fecha_inicio,
+          fecha_fin: params.fecha_fin,
+        }
+        if (params.tripulacion) ensambleParams.tripulacion = params.tripulacion
+        const r3 = await axios.get('/api/reporte-ensamble', { params: ensambleParams })
+        setEnsambleData({ data: r3.data, tripulacion: params.tripulacion || '' })
       } finally {
         setLoading(false)
       }
@@ -382,6 +552,11 @@ export default function ManagerPage() {
           </div>
         </div>
       </section>
+
+      {/* ── TABLA INCIDENCIAS ENSAMBLE ───────────────────────────────────── */}
+      {ensambleData && ensambleData.data.length > 0 && (
+        <TablaEnsamble data={ensambleData.data} tripulacion={ensambleData.tripulacion} />
+      )}
 
       {/* ── KPIs ─────────────────────────────────────────────────────────── */}
       {data && (

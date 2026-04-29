@@ -321,6 +321,72 @@ def get_dashboard(
     return crud.get_dashboard_data(db, area_id, linea_id, tripulacion, fecha_inicio, fecha_fin)
 
 
+@app.get("/api/reporte-ensamble")
+def get_reporte_ensamble(
+    tripulacion: Optional[str] = Query(default=None),
+    fecha_inicio: Optional[date_type] = Query(default=None),
+    fecha_fin: Optional[date_type] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    """Devuelve datos por línea: plantilla autorizada + incidencias capturadas."""
+    from sqlalchemy.orm import joinedload as jl
+    today = date_type.today()
+    if not fecha_inicio:
+        fecha_inicio = today
+    if not fecha_fin:
+        fecha_fin = today
+
+    lineas = db.query(models.Linea).options(jl(models.Linea.area)).all()
+
+    rep_q = (
+        db.query(models.ReporteDiario)
+        .options(jl(models.ReporteDiario.incidencias), jl(models.ReporteDiario.linea))
+        .filter(
+            models.ReporteDiario.fecha >= fecha_inicio,
+            models.ReporteDiario.fecha <= fecha_fin,
+        )
+    )
+    if tripulacion:
+        rep_q = rep_q.filter(models.ReporteDiario.tripulacion == tripulacion)
+    reportes = rep_q.all()
+
+    area_order = []
+    area_linea_order: dict = {}
+    linea_map: dict = {}
+    for l in lineas:
+        an = l.area.nombre
+        if an not in area_linea_order:
+            area_order.append(an)
+            area_linea_order[an] = []
+        linea_map[l.id] = {
+            "id": l.id,
+            "nombre": l.nombre,
+            "area": an,
+            "personas_autorizadas": l.personas_autorizadas or 0,
+            "total_lideres": l.total_lideres or 0,
+            "pool_autorizado": l.pool_autorizado or 0,
+            "total_autorizado": (l.personas_autorizadas or 0) + (l.total_lideres or 0) + (l.pool_autorizado or 0),
+            "lets_libres": 0,
+            "incidencias": {},
+            "total_incidencias": 0,
+        }
+        area_linea_order[an].append(l.id)
+
+    for rep in reportes:
+        lid = rep.linea_id
+        if lid in linea_map:
+            linea_map[lid]["lets_libres"] += rep.lideres_presentes
+            for inc in rep.incidencias:
+                t = inc.tipo
+                linea_map[lid]["incidencias"][t] = linea_map[lid]["incidencias"].get(t, 0) + inc.cantidad
+                linea_map[lid]["total_incidencias"] += inc.cantidad
+
+    return [
+        {"area": an, "lineas": [linea_map[lid] for lid in area_linea_order[an]]}
+        for an in area_order
+    ]
+
+
 @app.get("/api/export/excel")
 def export_excel(
     area_id: Optional[int] = None,

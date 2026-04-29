@@ -389,7 +389,7 @@ export default function ManagerPage() {
           {/* ── Tarjetas resumen por tipo ────────────────────────────────── */}
           {data.por_tipo.length > 0 && (
             <div className="bg-white rounded-2xl shadow p-5">
-              <h2 className="font-semibold text-gray-700 mb-4">Resumen por tipo de incidencia</h2>
+              <h2 className="font-semibold text-gray-700 mb-4">Reporte Resumen Area Shift Leader</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                 {data.por_tipo.map((item, i) => (
                   <div

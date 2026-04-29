@@ -43,9 +43,9 @@ export default function ConfigPage() {
       const inicial = {}
       r.data.forEach((l) => {
         inicial[l.id] = {
-          total_lideres: l.total_lideres,
-          personas_autorizadas: l.personas_autorizadas,
-          pool_autorizado: l.pool_autorizado,
+          total_lideres: l.total_lideres || '',
+          personas_autorizadas: l.personas_autorizadas || '',
+          pool_autorizado: l.pool_autorizado || '',
         }
       })
       setEdits(inicial)
@@ -55,15 +55,20 @@ export default function ConfigPage() {
   const handleChange = (lineaId, field, value) => {
     setEdits((prev) => ({
       ...prev,
-      [lineaId]: { ...prev[lineaId], [field]: parseInt(value) || 0 },
+      [lineaId]: { ...prev[lineaId], [field]: value },
     }))
     setSaved((prev) => ({ ...prev, [lineaId]: false }))
   }
 
   const handleSave = async (linea) => {
+    const e = edits[linea.id]
     setSaving((prev) => ({ ...prev, [linea.id]: true }))
     try {
-      await axios.put(`/api/lineas/${linea.id}/config`, edits[linea.id])
+      await axios.put(`/api/lineas/${linea.id}/config`, {
+        total_lideres: parseInt(e.total_lideres) || 0,
+        personas_autorizadas: parseInt(e.personas_autorizadas) || 0,
+        pool_autorizado: parseInt(e.pool_autorizado) || 0,
+      })
       setSaved((prev) => ({ ...prev, [linea.id]: true }))
     } finally {
       setSaving((prev) => ({ ...prev, [linea.id]: false }))
@@ -96,8 +101,12 @@ export default function ConfigPage() {
 
   const totalAutorizado = (id) => {
     const e = edits[id]
-    if (!e) return 0
-    return (e.total_lideres || 0) + (e.personas_autorizadas || 0) + (e.pool_autorizado || 0)
+    if (!e) return '—'
+    const p = parseInt(e.personas_autorizadas)
+    const l = parseInt(e.total_lideres)
+    const pool = parseInt(e.pool_autorizado)
+    if (isNaN(p) || isNaN(l) || isNaN(pool)) return '—'
+    return p + l + pool
   }
 
   // ── Pantalla de PIN ──────────────────────────────────────────────────────────
@@ -178,9 +187,10 @@ export default function ConfigPage() {
                         <input
                           type="number"
                           min="0"
-                          value={edits[linea.id]?.[field] ?? 0}
+                          value={edits[linea.id]?.[field] ?? ''}
+                          placeholder="—"
                           onChange={(e) => handleChange(linea.id, field, e.target.value)}
-                          className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-center focus:border-blue-500 outline-none"
+                          className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-center focus:border-blue-500 outline-none placeholder-gray-300"
                         />
                       </td>
                     ))}

@@ -37,6 +37,20 @@ async def startup_event():
             conn.commit()
         except Exception:
             pass  # Column already exists
+        try:
+            conn.execute(__import__('sqlalchemy').text(
+                "ALTER TABLE lineas ADD COLUMN personas_autorizadas INTEGER DEFAULT 0"
+            ))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(__import__('sqlalchemy').text(
+                "ALTER TABLE lineas ADD COLUMN pool_autorizado INTEGER DEFAULT 0"
+            ))
+            conn.commit()
+        except Exception:
+            pass
     from seed import seed
     seed()
 
@@ -55,6 +69,12 @@ class ReporteIn(BaseModel):
     tripulacion: str = "A"
     lideres_presentes: int
     incidencias: List[IncidenciaIn]
+
+
+class LineaConfigIn(BaseModel):
+    total_lideres: int
+    personas_autorizadas: int
+    pool_autorizado: int
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -103,11 +123,32 @@ def get_lineas(area_id: Optional[int] = None, db: Session = Depends(get_db)):
             "id": l.id,
             "nombre": l.nombre,
             "total_lideres": l.total_lideres,
+            "personas_autorizadas": l.personas_autorizadas or 0,
+            "pool_autorizado": l.pool_autorizado or 0,
             "area_id": l.area_id,
             "area_nombre": l.area.nombre,
         }
         for l in lineas
     ]
+
+
+@app.put("/api/lineas/{linea_id}/config")
+def update_linea_config(linea_id: int, data: LineaConfigIn, db: Session = Depends(get_db)):
+    linea = crud.get_linea(db, linea_id)
+    if not linea:
+        raise HTTPException(status_code=404, detail="Línea no encontrada")
+    linea.total_lideres = data.total_lideres
+    linea.personas_autorizadas = data.personas_autorizadas
+    linea.pool_autorizado = data.pool_autorizado
+    db.commit()
+    db.refresh(linea)
+    return {
+        "id": linea.id,
+        "nombre": linea.nombre,
+        "total_lideres": linea.total_lideres,
+        "personas_autorizadas": linea.personas_autorizadas or 0,
+        "pool_autorizado": linea.pool_autorizado or 0,
+    }
 
 
 @app.get("/api/lineas/{linea_id}")

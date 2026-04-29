@@ -17,6 +17,8 @@ class Linea(Base):
     area_id = Column(Integer, ForeignKey("areas.id"), nullable=False)
     nombre = Column(String, nullable=False)
     total_lideres = Column(Integer, default=0)
+    personas_autorizadas = Column(Integer, default=0)
+    pool_autorizado = Column(Integer, default=0)
     area = relationship("Area", back_populates="lineas")
     reportes = relationship("ReporteDiario", back_populates="linea")
 

@@ -3,6 +3,7 @@ import NavBar from './components/NavBar'
 import HomePage from './pages/HomePage'
 import SupervisorPage from './pages/SupervisorPage'
 import ManagerPage from './pages/ManagerPage'
+import ConfigPage from './pages/ConfigPage'
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/supervisor" element={<SupervisorPage />} />
             <Route path="/gerente" element={<ManagerPage />} />
+            <Route path="/config" element={<ConfigPage />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>

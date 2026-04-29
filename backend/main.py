@@ -28,29 +28,19 @@ app.add_middleware(
 # Seed DB on startup
 @app.on_event("startup")
 async def startup_event():
-    # Run migrations first
-    with engine.connect() as conn:
+    # Run migrations — each in its own connection to avoid aborted transaction state in PostgreSQL
+    migrations = [
+        "ALTER TABLE reportes_diarios ADD COLUMN tripulacion VARCHAR DEFAULT 'A'",
+        "ALTER TABLE lineas ADD COLUMN personas_autorizadas INTEGER DEFAULT 0",
+        "ALTER TABLE lineas ADD COLUMN pool_autorizado INTEGER DEFAULT 0",
+    ]
+    for sql in migrations:
         try:
-            conn.execute(__import__('sqlalchemy').text(
-                "ALTER TABLE reportes_diarios ADD COLUMN tripulacion VARCHAR DEFAULT 'A'"
-            ))
-            conn.commit()
+            with engine.connect() as conn:
+                conn.execute(__import__('sqlalchemy').text(sql))
+                conn.commit()
         except Exception:
-            pass  # Column already exists
-        try:
-            conn.execute(__import__('sqlalchemy').text(
-                "ALTER TABLE lineas ADD COLUMN personas_autorizadas INTEGER DEFAULT 0"
-            ))
-            conn.commit()
-        except Exception:
-            pass
-        try:
-            conn.execute(__import__('sqlalchemy').text(
-                "ALTER TABLE lineas ADD COLUMN pool_autorizado INTEGER DEFAULT 0"
-            ))
-            conn.commit()
-        except Exception:
-            pass
+            pass  # Column already exists — ignore
     from seed import seed
     seed()
 

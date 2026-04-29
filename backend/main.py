@@ -33,6 +33,7 @@ async def startup_event():
         "ALTER TABLE reportes_diarios ADD COLUMN tripulacion VARCHAR DEFAULT 'A'",
         "ALTER TABLE lineas ADD COLUMN personas_autorizadas INTEGER DEFAULT 0",
         "ALTER TABLE lineas ADD COLUMN pool_autorizado INTEGER DEFAULT 0",
+        "ALTER TABLE lineas ADD COLUMN numerico INTEGER DEFAULT 0",
     ]
     for sql in migrations:
         try:
@@ -75,6 +76,7 @@ class LineaConfigIn(BaseModel):
     total_lideres: int
     personas_autorizadas: int
     pool_autorizado: int
+    numerico: int = 0
 
 
 class PinIn(BaseModel):
@@ -130,6 +132,7 @@ def get_lineas(area_id: Optional[int] = None, db: Session = Depends(get_db)):
             "total_lideres": l.total_lideres,
             "personas_autorizadas": l.personas_autorizadas or 0,
             "pool_autorizado": l.pool_autorizado or 0,
+            "numerico": l.numerico or 0,
             "area_id": l.area_id,
             "area_nombre": l.area.nombre,
         }
@@ -145,6 +148,7 @@ def update_linea_config(linea_id: int, data: LineaConfigIn, db: Session = Depend
     linea.total_lideres = data.total_lideres
     linea.personas_autorizadas = data.personas_autorizadas
     linea.pool_autorizado = data.pool_autorizado
+    linea.numerico = data.numerico
     db.commit()
     db.refresh(linea)
     return {
@@ -153,6 +157,7 @@ def update_linea_config(linea_id: int, data: LineaConfigIn, db: Session = Depend
         "total_lideres": linea.total_lideres,
         "personas_autorizadas": linea.personas_autorizadas or 0,
         "pool_autorizado": linea.pool_autorizado or 0,
+        "numerico": linea.numerico or 0,
     }
 
 
@@ -365,6 +370,7 @@ def get_reporte_ensamble(
             "personas_autorizadas": l.personas_autorizadas or 0,
             "total_lideres": l.total_lideres or 0,
             "pool_autorizado": l.pool_autorizado or 0,
+            "numerico": l.numerico or 0,
             "total_autorizado": (l.personas_autorizadas or 0) + (l.total_lideres or 0) + (l.pool_autorizado or 0),
             "lets_libres": 0,
             "incidencias": {},

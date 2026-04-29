@@ -46,6 +46,7 @@ export default function ConfigPage() {
           total_lideres: l.total_lideres || '',
           personas_autorizadas: l.personas_autorizadas || '',
           pool_autorizado: l.pool_autorizado || '',
+          numerico: l.numerico || '',
         }
       })
       setEdits(inicial)
@@ -68,6 +69,7 @@ export default function ConfigPage() {
         total_lideres: parseInt(e.total_lideres) || 0,
         personas_autorizadas: parseInt(e.personas_autorizadas) || 0,
         pool_autorizado: parseInt(e.pool_autorizado) || 0,
+        numerico: parseInt(e.numerico) || 0,
       })
       setSaved((prev) => ({ ...prev, [linea.id]: true }))
     } finally {
@@ -107,6 +109,16 @@ export default function ConfigPage() {
     const pool = parseInt(e.pool_autorizado)
     if (isNaN(p) || isNaN(l) || isNaN(pool)) return '—'
     return p + l + pool
+  }
+
+  const diferencia = (id) => {
+    const total = totalAutorizado(id)
+    if (total === '—') return '—'
+    const e = edits[id]
+    const num = parseInt(e.numerico)
+    if (e.numerico === '' || isNaN(num)) return '—'
+    const diff = total - num
+    return diff
   }
 
   // ── Pantalla de PIN ──────────────────────────────────────────────────────────
@@ -175,6 +187,8 @@ export default function ConfigPage() {
                   <th className="text-center p-3">Lets<br/><span className="font-normal text-xs text-gray-400">Líderes</span></th>
                   <th className="text-center p-3">Pool</th>
                   <th className="text-center p-3 font-bold text-blue-700">Total<br/><span className="font-normal text-xs">Autorizado</span></th>
+                  <th className="text-center p-3 font-bold text-gray-700 bg-yellow-50">Numérico<br/><span className="font-normal text-xs text-gray-400">Captura BM</span></th>
+                  <th className="text-center p-3 font-bold bg-green-50">Diferencia<br/><span className="font-normal text-xs text-gray-400">Aut. − Num.</span></th>
                   <th className="p-3"></th>
                 </tr>
               </thead>
@@ -196,6 +210,29 @@ export default function ConfigPage() {
                     ))}
                     <td className="p-3 text-center">
                       <span className="text-lg font-bold text-blue-700">{totalAutorizado(linea.id)}</span>
+                    </td>
+                    {/* Numérico — captura BM/Planner */}
+                    <td className="p-3 text-center bg-yellow-50">
+                      <input
+                        type="number"
+                        min="0"
+                        value={edits[linea.id]?.numerico ?? ''}
+                        placeholder="—"
+                        onChange={(e) => handleChange(linea.id, 'numerico', e.target.value)}
+                        className="w-16 border border-yellow-300 rounded-lg px-2 py-1 text-center focus:border-yellow-500 outline-none placeholder-gray-300 bg-white"
+                      />
+                    </td>
+                    {/* Diferencia — calculada */}
+                    <td className="p-3 text-center bg-green-50">
+                      {(() => {
+                        const diff = diferencia(linea.id)
+                        if (diff === '—') return <span className="text-gray-400">—</span>
+                        return (
+                          <span className={`text-base font-bold ${diff >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                            {diff > 0 ? '+' : ''}{diff}
+                          </span>
+                        )
+                      })()}
                     </td>
                     <td className="p-3 text-right">
                       <button

@@ -208,7 +208,7 @@ def get_colaboradores(
         .filter(
             models.ReporteDiario.fecha >= fecha_inicio,
             models.ReporteDiario.fecha <= fecha_fin,
-            models.Incidencia.tipo.in_(["Incapacidad", "Restricción Médica"]),
+            models.Incidencia.tipo.in_(["Incapacidad", "Restricción Médica", "Embarazada"]),
             models.Incidencia.notas != None,
             models.Incidencia.notas != "",
         )

@@ -14,6 +14,7 @@ const TIPOS_INCIDENCIA = [
   'Sanciones',
   'Incapacidad',
   'Restricción Médica',
+  'Embarazada',
 ]
 
 const todayStr = () => {
@@ -93,7 +94,7 @@ export default function SupervisorPage() {
     if (newCantidad < 1) return
     // Construir notas automáticamente para tipos especiales
     let notaFinal = newNotas
-    const esEspecial = newTipo === 'Incapacidad' || newTipo === 'Restricción Médica'
+    const esEspecial = newTipo === 'Incapacidad' || newTipo === 'Restricción Médica' || newTipo === 'Embarazada'
     if (esEspecial && newColaborador.trim()) {
       notaFinal = newColaborador.trim()
       if (newTipo === 'Restricción Médica') {
@@ -263,8 +264,8 @@ export default function SupervisorPage() {
                 className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold w-9 h-9 rounded-lg text-lg flex items-center justify-center"
               >+</button>
             </div>
-            {/* Campo de colaborador solo para Incapacidad y Restricción Médica */}
-            {(newTipo === 'Incapacidad' || newTipo === 'Restricción Médica') && (
+            {/* Campo de colaborador solo para Incapacidad, Restricción Médica y Embarazada */}
+            {(newTipo === 'Incapacidad' || newTipo === 'Restricción Médica' || newTipo === 'Embarazada') && (
               <input
                 type="text"
                 value={newColaborador}
@@ -285,7 +286,7 @@ export default function SupervisorPage() {
               </select>
             )}
             {/* Notas para otros tipos */}
-            {newTipo !== 'Incapacidad' && newTipo !== 'Restricción Médica' && (
+            {newTipo !== 'Incapacidad' && newTipo !== 'Restricción Médica' && newTipo !== 'Embarazada' && (
               <input
                 type="text"
                 value={newNotas}

@@ -92,9 +92,11 @@ export default function SupervisorPage() {
 
   const addIncidencia = () => {
     if (newCantidad < 1) return
+    const esEspecial = newTipo === 'Incapacidad' || newTipo === 'Restricción Médica' || newTipo === 'Embarazada'
+    // Bloquear si es tipo especial y no se ingresó nombre
+    if (esEspecial && !newColaborador.trim()) return
     // Construir notas automáticamente para tipos especiales
     let notaFinal = newNotas
-    const esEspecial = newTipo === 'Incapacidad' || newTipo === 'Restricción Médica' || newTipo === 'Embarazada'
     if (esEspecial && newColaborador.trim()) {
       notaFinal = newColaborador.trim()
       if (newTipo === 'Restricción Médica') {
@@ -295,9 +297,16 @@ export default function SupervisorPage() {
                 className="input flex-1 min-w-[140px]"
               />
             )}
+            {/* Aviso si falta el nombre */}
+            {(newTipo === 'Incapacidad' || newTipo === 'Restricción Médica' || newTipo === 'Embarazada') && !newColaborador.trim() && (
+              <p className="w-full text-xs text-red-500 font-medium -mt-1">
+                ⚠️ Debes ingresar el nombre del colaborador para continuar
+              </p>
+            )}
             <button
               onClick={addIncidencia}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium"
+              disabled={(newTipo === 'Incapacidad' || newTipo === 'Restricción Médica' || newTipo === 'Embarazada') && !newColaborador.trim()}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             >
               + Agregar
             </button>

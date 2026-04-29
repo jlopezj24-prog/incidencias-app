@@ -41,6 +41,16 @@ async def startup_event():
                 conn.commit()
         except Exception:
             pass  # Column already exists — ignore
+
+    # Create app_config table if not exists (stores PIN and other settings)
+    try:
+        with engine.connect() as conn:
+            conn.execute(__import__('sqlalchemy').text(
+                "CREATE TABLE IF NOT EXISTS app_config (key VARCHAR PRIMARY KEY, value VARCHAR NOT NULL)"
+            ))
+            conn.commit()
+    except Exception:
+        pass
     from seed import seed
     seed()
 
@@ -65,6 +75,11 @@ class LineaConfigIn(BaseModel):
     total_lideres: int
     personas_autorizadas: int
     pool_autorizado: int
+
+
+class PinIn(BaseModel):
+    pin_actual: str
+    pin_nuevo: str
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -209,6 +224,31 @@ def get_estado_dia(fecha: date_type, tripulacion: str = "A", db: Session = Depen
         "lineas": resultado,
     }
 
+
+
+@app.get("/api/config/pin-verify")
+def verify_pin(pin: str, db: Session = Depends(get_db)):
+    """Verifica si el PIN ingresado es correcto."""
+    row = db.query(models.AppConfig).filter(models.AppConfig.key == "config_pin").first()
+    pin_guardado = row.value if row else "1234"
+    return {"ok": pin == pin_guardado}
+
+
+@app.put("/api/config/pin")
+def update_pin(data: PinIn, db: Session = Depends(get_db)):
+    """Cambia el PIN. Requiere el PIN actual para autenticarse."""
+    row = db.query(models.AppConfig).filter(models.AppConfig.key == "config_pin").first()
+    pin_guardado = row.value if row else "1234"
+    if data.pin_actual != pin_guardado:
+        raise HTTPException(status_code=403, detail="PIN actual incorrecto")
+    if len(data.pin_nuevo.strip()) < 4:
+        raise HTTPException(status_code=400, detail="El PIN debe tener al menos 4 caracteres")
+    if row:
+        row.value = data.pin_nuevo.strip()
+    else:
+        db.add(models.AppConfig(key="config_pin", value=data.pin_nuevo.strip()))
+    db.commit()
+    return {"ok": True}
 
 
 @app.get("/api/colaboradores")

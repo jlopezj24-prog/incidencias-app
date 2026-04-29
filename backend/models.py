@@ -45,3 +45,9 @@ class Incidencia(Base):
     cantidad = Column(Integer, default=1)
     notas = Column(String, nullable=True)
     reporte = relationship("ReporteDiario", back_populates="incidencias")
+
+
+class AppConfig(Base):
+    __tablename__ = "app_config"
+    key = Column(String, primary_key=True)
+    value = Column(String, nullable=False)

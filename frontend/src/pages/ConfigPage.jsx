@@ -1,24 +1,38 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 
-const PIN_CORRECTO = '1234'
-
 export default function ConfigPage() {
   const [pin, setPin] = useState('')
   const [autenticado, setAutenticado] = useState(false)
   const [pinError, setPinError] = useState(false)
+  const [verificando, setVerificando] = useState(false)
+
+  // Cambio de PIN
+  const [pinActual, setPinActual] = useState('')
+  const [pinNuevo, setPinNuevo] = useState('')
+  const [pinConfirma, setPinConfirma] = useState('')
+  const [pinMsg, setPinMsg] = useState(null)
+  const [guardandoPin, setGuardandoPin] = useState(false)
 
   const [lineas, setLineas] = useState([])
-  const [edits, setEdits] = useState({}) // { [linea_id]: { total_lideres, personas_autorizadas, pool_autorizado } }
+  const [edits, setEdits] = useState({})
   const [saving, setSaving] = useState({})
   const [saved, setSaved] = useState({})
 
-  const verificarPin = () => {
-    if (pin === PIN_CORRECTO) {
-      setAutenticado(true)
-      setPinError(false)
-    } else {
+  const verificarPin = async () => {
+    setVerificando(true)
+    setPinError(false)
+    try {
+      const r = await axios.get('/api/config/pin-verify', { params: { pin } })
+      if (r.data.ok) {
+        setAutenticado(true)
+      } else {
+        setPinError(true)
+      }
+    } catch {
       setPinError(true)
+    } finally {
+      setVerificando(false)
     }
   }
 
@@ -56,6 +70,30 @@ export default function ConfigPage() {
     }
   }
 
+  const handleCambiarPin = async () => {
+    setPinMsg(null)
+    if (pinNuevo.length < 4) {
+      setPinMsg({ type: 'error', text: 'El PIN nuevo debe tener al menos 4 caracteres.' })
+      return
+    }
+    if (pinNuevo !== pinConfirma) {
+      setPinMsg({ type: 'error', text: 'El PIN nuevo y la confirmación no coinciden.' })
+      return
+    }
+    setGuardandoPin(true)
+    try {
+      await axios.put('/api/config/pin', { pin_actual: pinActual, pin_nuevo: pinNuevo })
+      setPinMsg({ type: 'success', text: '✅ PIN cambiado correctamente.' })
+      setPinActual(''); setPinNuevo(''); setPinConfirma('')
+      // Actualizar sesión con nuevo PIN
+      setPin(pinNuevo)
+    } catch (e) {
+      setPinMsg({ type: 'error', text: e.response?.data?.detail || '❌ Error al cambiar el PIN.' })
+    } finally {
+      setGuardandoPin(false)
+    }
+  }
+
   const totalAutorizado = (id) => {
     const e = edits[id]
     if (!e) return 0
@@ -76,19 +114,18 @@ export default function ConfigPage() {
             onChange={(e) => { setPin(e.target.value); setPinError(false) }}
             onKeyDown={(e) => e.key === 'Enter' && verificarPin()}
             placeholder="Ingresa el PIN"
-            maxLength={10}
+            maxLength={20}
             className={`w-full border rounded-xl px-4 py-3 text-center text-xl tracking-widest outline-none mb-3 ${
               pinError ? 'border-red-400 bg-red-50' : 'border-gray-300 focus:border-blue-500'
             }`}
           />
-          {pinError && (
-            <p className="text-red-500 text-sm mb-3">❌ PIN incorrecto</p>
-          )}
+          {pinError && <p className="text-red-500 text-sm mb-3">❌ PIN incorrecto</p>}
           <button
             onClick={verificarPin}
-            className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+            disabled={verificando}
+            className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors disabled:bg-blue-300"
           >
-            Entrar
+            {verificando ? 'Verificando…' : 'Entrar'}
           </button>
         </div>
       </div>
@@ -96,7 +133,6 @@ export default function ConfigPage() {
   }
 
   // ── Pantalla de configuración ────────────────────────────────────────────────
-  // Agrupar por área
   const porArea = lineas.reduce((acc, l) => {
     if (!acc[l.area_nombre]) acc[l.area_nombre] = []
     acc[l.area_nombre].push(l)
@@ -107,17 +143,13 @@ export default function ConfigPage() {
     <div className="space-y-5 py-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">⚙️ Configuración de Plantilla Autorizada</h1>
-        <button
-          onClick={() => setAutenticado(false)}
-          className="text-sm text-gray-400 hover:text-gray-600"
-        >
+        <button onClick={() => setAutenticado(false)} className="text-sm text-gray-400 hover:text-gray-600">
           🔒 Cerrar sesión
         </button>
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
-        <strong>Instrucciones:</strong> Ingresa los números autorizados por línea (Personas operadoras, Lets/Líderes y Pool).
-        El <strong>Total Autorizado</strong> se calcula automáticamente. Haz clic en <strong>Guardar</strong> en cada línea que modifiques.
+        <strong>Instrucciones:</strong> Ingresa los números autorizados por línea. El <strong>Total Autorizado</strong> se calcula automáticamente. Haz clic en <strong>Guardar</strong> en cada línea que modifiques.
       </div>
 
       {Object.entries(porArea).map(([area, areaLineas]) => (
@@ -153,9 +185,7 @@ export default function ConfigPage() {
                       </td>
                     ))}
                     <td className="p-3 text-center">
-                      <span className="text-lg font-bold text-blue-700">
-                        {totalAutorizado(linea.id)}
-                      </span>
+                      <span className="text-lg font-bold text-blue-700">{totalAutorizado(linea.id)}</span>
                     </td>
                     <td className="p-3 text-right">
                       <button
@@ -177,6 +207,55 @@ export default function ConfigPage() {
           </div>
         </div>
       ))}
+
+      {/* ── Cambiar PIN ──────────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl shadow p-5">
+        <h2 className="font-semibold text-gray-700 mb-4">🔑 Cambiar PIN de acceso</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-lg">
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">PIN actual</label>
+            <input
+              type="password"
+              value={pinActual}
+              onChange={(e) => setPinActual(e.target.value)}
+              placeholder="PIN actual"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">PIN nuevo</label>
+            <input
+              type="password"
+              value={pinNuevo}
+              onChange={(e) => setPinNuevo(e.target.value)}
+              placeholder="Mín. 4 caracteres"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Confirmar PIN nuevo</label>
+            <input
+              type="password"
+              value={pinConfirma}
+              onChange={(e) => setPinConfirma(e.target.value)}
+              placeholder="Repetir PIN nuevo"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"
+            />
+          </div>
+        </div>
+        {pinMsg && (
+          <p className={`mt-2 text-sm font-medium ${pinMsg.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+            {pinMsg.text}
+          </p>
+        )}
+        <button
+          onClick={handleCambiarPin}
+          disabled={guardandoPin}
+          className="mt-3 bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
+        >
+          {guardandoPin ? 'Guardando…' : 'Cambiar PIN'}
+        </button>
+      </div>
     </div>
   )
 }

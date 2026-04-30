@@ -89,7 +89,7 @@ function TablaEnsamble({ data, tripulacion }) {
               <th className={thCls + ' bg-blue-700'}>TOTAL AUT.</th>
               <th className={thCls + ' bg-green-700'}>LETS LIBRES</th>
               {TIPOS_ENSAMBLE.map(t => (
-                <th key={t.key} className={thCls + ' max-w-[55px] leading-tight'} style={{ fontSize: '9px', padding: '4px 2px' }}>
+                <th key={t.key} className={thCls} style={{ fontSize: '8px', padding: '3px 2px', width: '48px', minWidth: '48px', maxWidth: '48px', wordBreak: 'break-word', lineHeight: '1.3', verticalAlign: 'bottom', textAlign: 'center' }}>
                   {t.key}
                 </th>
               ))}

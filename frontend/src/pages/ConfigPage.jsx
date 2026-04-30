@@ -117,7 +117,7 @@ export default function ConfigPage() {
     const e = edits[id]
     const num = parseInt(e.numerico)
     if (e.numerico === '' || isNaN(num)) return '—'
-    const diff = total - num
+    const diff = num - total
     return diff
   }
 

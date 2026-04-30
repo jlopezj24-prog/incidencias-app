@@ -62,6 +62,13 @@ function sumaArea(lineas, field) {
 function sumaIncArea(lineas, key) {
   return lineas.reduce((s, l) => s + (l.incidencias[key] || 0), 0)
 }
+function letsLibres(l) {
+  // LETS LIBRES = lets_aut + pool_aut + (numerico - total_autorizado) - total_incidencias
+  return (l.total_lideres || 0) + (l.pool_autorizado || 0) + ((l.numerico || 0) - (l.total_autorizado || 0)) - (l.total_incidencias || 0)
+}
+function letsLibresArea(lineas) {
+  return lineas.reduce((s, l) => s + letsLibres(l), 0)
+}
 
 function TablaEnsamble({ data, tripulacion }) {
   const grandLineas = data.flatMap(a => a.lineas)
@@ -109,7 +116,7 @@ function TablaEnsamble({ data, tripulacion }) {
                       <td className={tdCls()}>{l.total_lideres || '—'}</td>
                       <td className={tdCls()}>{l.pool_autorizado || '—'}</td>
                       <td className={tdCls(true) + ' bg-blue-50'}>{l.total_autorizado || '—'}</td>
-                      <td className={tdCls(true) + ' bg-green-50 text-green-800'}>{l.lets_libres}</td>
+                      <td className={tdCls(true) + ' bg-green-50 text-green-800'}>{letsLibres(l)}</td>
                       {TIPOS_ENSAMBLE.map(t => (
                         <td key={t.key} className={tdCls()}>
                           {l.incidencias[t.key] ? l.incidencias[t.key] : ''}
@@ -138,7 +145,7 @@ function TablaEnsamble({ data, tripulacion }) {
                       {sumaArea(aLns, 'total_autorizado')}
                     </td>
                     <td className="px-2 py-1 text-center text-xs font-bold border border-blue-700 bg-green-700">
-                      {sumaArea(aLns, 'lets_libres')}
+                      {letsLibresArea(aLns)}
                     </td>
                     {TIPOS_ENSAMBLE.map(t => (
                       <td key={t.key} className="px-2 py-1 text-center text-xs font-bold border border-blue-700">
@@ -171,7 +178,7 @@ function TablaEnsamble({ data, tripulacion }) {
                 {sumaArea(grandLineas, 'total_autorizado')}
               </td>
               <td className="px-2 py-1 text-center text-xs font-bold border border-gray-500">
-                {sumaArea(grandLineas, 'lets_libres')}
+                {letsLibresArea(grandLineas)}
               </td>
               {TIPOS_ENSAMBLE.map(t => (
                 <td key={t.key} className="px-2 py-1 text-center text-xs font-bold border border-gray-500">
@@ -192,7 +199,7 @@ function TablaEnsamble({ data, tripulacion }) {
               <td colSpan={2} className="px-2 py-1 text-center text-xs font-bold border border-gray-300 text-green-700">
                 {(() => {
                   const totalLets = sumaArea(grandLineas, 'total_lideres')
-                  const libres = sumaArea(grandLineas, 'lets_libres')
+                  const libres = letsLibresArea(grandLineas)
                   if (!totalLets) return '—'
                   return `${((libres / totalLets) * 100).toFixed(1)}%`
                 })()}

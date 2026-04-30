@@ -65,7 +65,7 @@ function sumaIncArea(lineas, key) {
 
 function TablaEnsamble({ data, tripulacion }) {
   const grandLineas = data.flatMap(a => a.lineas)
-  const thCls = 'px-2 py-1.5 text-center text-xs font-bold uppercase whitespace-nowrap border border-blue-800'
+  const thCls = 'px-2 py-1.5 text-center text-xs font-bold uppercase border border-blue-800'
   const tdCls = (bold) => `px-2 py-1 text-center text-xs border border-gray-200 ${bold ? 'font-bold' : ''}`
   const tdName = 'px-2 py-1 text-xs font-medium border border-gray-200 whitespace-nowrap'
   const trTotal = 'bg-blue-900 text-white'
@@ -88,7 +88,13 @@ function TablaEnsamble({ data, tripulacion }) {
               <th className={thCls}>POOL</th>
               <th className={thCls + ' bg-blue-700'}>TOTAL AUT.</th>
               <th className={thCls + ' bg-green-700'}>LETS LIBRES</th>
-              {TIPOS_ENSAMBLE.map(t => <th key={t.key} className={thCls}>{t.label}</th>)}
+              {TIPOS_ENSAMBLE.map(t => (
+                <th key={t.key} className={thCls + ' min-w-[60px] max-w-[70px]'}>
+                  <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '10px', lineHeight: '1.2', height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+                    {t.key}
+                  </div>
+                </th>
+              ))}
               <th className={thCls + ' bg-yellow-600'}>TOTAL INC.</th>
             </tr>
           </thead>

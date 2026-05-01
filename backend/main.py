@@ -359,7 +359,12 @@ async def parse_numerico_excel(file: UploadFile = File(...), db: Session = Depen
     mapa_db.sort(key=lambda m: -len(m.patron))
 
     import re
-    EXCLUIR = ['secuenciado', 'qlty', 'quality']
+    EXCLUIR = [
+        'secuenciado', 'qlty', 'quality',
+        'maternidades', 'core team', 'support 2nd shift',
+        'maintenance', 'proyectos ga', 'reparaciones b 1x',
+        'bs group leader', 'trim ga b',
+    ]
     re_supervisor = re.compile(r'\(([^)]+)\)')
 
     grupos: dict = {}

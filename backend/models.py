@@ -52,3 +52,13 @@ class AppConfig(Base):
     __tablename__ = "app_config"
     key = Column(String, primary_key=True)
     value = Column(String, nullable=False)
+
+
+class LineaNumerico(Base):
+    """Numérico por línea y tripulación, cargado desde Excel por el BM/Planner."""
+    __tablename__ = "linea_numerico"
+    id = Column(Integer, primary_key=True, index=True)
+    linea_id = Column(Integer, ForeignKey("lineas.id"), nullable=False)
+    tripulacion = Column(String, nullable=False)
+    valor = Column(Integer, nullable=False, default=0)
+    __table_args__ = (UniqueConstraint("linea_id", "tripulacion", name="uq_linea_numerico_trip"),)

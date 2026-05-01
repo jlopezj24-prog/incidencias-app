@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
@@ -52,6 +52,23 @@ async def startup_event():
             conn.commit()
     except Exception:
         pass
+
+    # Create linea_numerico table if not exists
+    try:
+        with engine.connect() as conn:
+            conn.execute(__import__('sqlalchemy').text(
+                """CREATE TABLE IF NOT EXISTS linea_numerico (
+                    id SERIAL PRIMARY KEY,
+                    linea_id INTEGER NOT NULL REFERENCES lineas(id),
+                    tripulacion VARCHAR NOT NULL,
+                    valor INTEGER NOT NULL DEFAULT 0,
+                    CONSTRAINT uq_linea_numerico_trip UNIQUE (linea_id, tripulacion)
+                )"""
+            ))
+            conn.commit()
+    except Exception:
+        pass
+
     from seed import seed
     seed()
 
@@ -256,7 +273,130 @@ def update_pin(data: PinIn, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
-@app.get("/api/colaboradores")
+# ── Numerico por tripulación (cargado desde Excel) ───────────────────────────
+
+class NumericoMapeoItem(BaseModel):
+    texto_excel: str
+    tripulacion: str
+    conteo: int
+    linea_id: Optional[int] = None  # None = ignorar este grupo
+
+
+class NumericoConfirmarIn(BaseModel):
+    mapeos: List[NumericoMapeoItem]
+
+
+@app.post("/api/numerico/parse-excel")
+async def parse_numerico_excel(file: UploadFile = File(...)):
+    """Lee el Excel y devuelve los grupos únicos detectados (texto, tripulación, conteo)."""
+    try:
+        from openpyxl import load_workbook
+    except ImportError:
+        raise HTTPException(status_code=500, detail="openpyxl no disponible")
+
+    content = await file.read()
+    try:
+        wb = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo leer el archivo Excel: {e}")
+
+    ws = wb.active
+
+    # Buscar la columna que contiene patrones de línea+tripulación
+    # Busca la primera fila con datos para identificar encabezados
+    headers = []
+    col_idx = None
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        raise HTTPException(status_code=400, detail="El archivo está vacío")
+
+    # Detectar fila de encabezados (primera fila con texto)
+    header_row = 0
+    for i, row in enumerate(rows):
+        if any(c is not None for c in row):
+            headers = [str(c).strip() if c else '' for c in row]
+            header_row = i
+            break
+
+    # Buscar columna por nombre parcial (Supervisory Organization, org, etc.)
+    for i, h in enumerate(headers):
+        if 'supervisor' in h.lower() or 'supervisory' in h.lower() or 'org' in h.lower():
+            col_idx = i
+            break
+
+    # Si no se encontró por nombre, buscar la columna que más coincide con el patrón
+    if col_idx is None:
+        import re
+        patron = re.compile(r'GA\s+.+\s+[ABC]\b', re.IGNORECASE)
+        col_counts = {}
+        for row in rows[header_row + 1:]:
+            for ci, cell in enumerate(row):
+                if cell and patron.search(str(cell)):
+                    col_counts[ci] = col_counts.get(ci, 0) + 1
+        if col_counts:
+            col_idx = max(col_counts, key=col_counts.get)
+
+    if col_idx is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No se encontró una columna con datos de línea/tripulación. Asegúrate de que el archivo contenga una columna con el formato 'GA Línea X Tripulación'."
+        )
+
+    import re
+    patron = re.compile(r'GA\s+(.+?)\s+([ABC])\s*\(', re.IGNORECASE)
+    grupos: dict = {}
+
+    for row in rows[header_row + 1:]:
+        if col_idx < len(row) and row[col_idx]:
+            celda = str(row[col_idx]).strip()
+            m = patron.search(celda)
+            if m:
+                nombre = m.group(1).strip()
+                trip = m.group(2).upper()
+                key = (nombre, trip)
+                grupos[key] = grupos.get(key, 0) + 1
+
+    if not grupos:
+        raise HTTPException(
+            status_code=400,
+            detail="No se encontraron datos con el formato 'GA {Línea} {Tripulación} ({Supervisor})' en el archivo."
+        )
+
+    return [
+        {"texto_excel": k[0], "tripulacion": k[1], "conteo": v}
+        for k, v in sorted(grupos.items(), key=lambda x: (x[0][1], x[0][0]))
+    ]
+
+
+@app.post("/api/numerico/confirmar")
+def confirmar_numerico(data: NumericoConfirmarIn, db: Session = Depends(get_db)):
+    """Guarda el numérico por línea y tripulación según el mapeo confirmado."""
+    guardados = 0
+    for item in data.mapeos:
+        if item.linea_id is None:
+            continue
+        existing = db.query(models.LineaNumerico).filter(
+            models.LineaNumerico.linea_id == item.linea_id,
+            models.LineaNumerico.tripulacion == item.tripulacion,
+        ).first()
+        if existing:
+            existing.valor = item.conteo
+        else:
+            db.add(models.LineaNumerico(
+                linea_id=item.linea_id,
+                tripulacion=item.tripulacion,
+                valor=item.conteo,
+            ))
+        guardados += 1
+    db.commit()
+    return {"ok": True, "guardados": guardados}
+
+
+@app.get("/api/numerico")
+def get_numerico(db: Session = Depends(get_db)):
+    """Devuelve todos los numéricos guardados por línea y tripulación."""
+    rows = db.query(models.LineaNumerico).all()
+    return [{"linea_id": r.linea_id, "tripulacion": r.tripulacion, "valor": r.valor} for r in rows]
 def get_colaboradores(
     area_id: Optional[int] = None,
     linea_id: Optional[int] = None,
@@ -358,11 +498,25 @@ def get_reporte_ensamble(
     area_order = []
     area_linea_order: dict = {}
     linea_map: dict = {}
+
+    # Cargar numéricos desde linea_numerico (por tripulación), fallback a linea.numerico
+    numerico_rows = db.query(models.LineaNumerico).all()
+    numerico_dict: dict = {(r.linea_id, r.tripulacion): r.valor for r in numerico_rows}
+
     for l in lineas:
         an = l.area.nombre
         if an not in area_linea_order:
             area_order.append(an)
             area_linea_order[an] = []
+        # Buscar numérico para esta línea+tripulación; si no existe, usar el campo general
+        trip_key = tripulacion or ''
+        num = numerico_dict.get((l.id, trip_key), None)
+        if num is None and trip_key:
+            num = l.numerico or 0
+        elif num is None:
+            # Sin tripulación específica: sumar todos los numéricos de esta línea
+            valores = [v for (lid, t), v in numerico_dict.items() if lid == l.id]
+            num = sum(valores) if valores else (l.numerico or 0)
         linea_map[l.id] = {
             "id": l.id,
             "nombre": l.nombre,
@@ -370,7 +524,7 @@ def get_reporte_ensamble(
             "personas_autorizadas": l.personas_autorizadas or 0,
             "total_lideres": l.total_lideres or 0,
             "pool_autorizado": l.pool_autorizado or 0,
-            "numerico": l.numerico or 0,
+            "numerico": num,
             "total_autorizado": (l.personas_autorizadas or 0) + (l.total_lideres or 0) + (l.pool_autorizado or 0),
             "lets_libres": 0,
             "incidencias": {},

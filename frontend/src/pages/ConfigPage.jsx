@@ -1,6 +1,153 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 
+function CargaNumerico({ lineas }) {
+  const [file, setFile] = useState(null)
+  const [parsing, setParsing] = useState(false)
+  const [grupos, setGrupos] = useState(null)   // [{texto_excel, tripulacion, conteo, linea_id}]
+  const [error, setError] = useState(null)
+  const [guardando, setGuardando] = useState(false)
+  const [guardadoMsg, setGuardadoMsg] = useState(null)
+
+  const handleParse = async () => {
+    if (!file) return
+    setParsing(true); setError(null); setGrupos(null); setGuardadoMsg(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const r = await axios.post('/api/numerico/parse-excel', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      // Intentar auto-mapear: buscar línea cuyo nombre aparezca en el texto_excel
+      const mapeados = r.data.map(g => {
+        const match = lineas.find(l =>
+          g.texto_excel.toLowerCase().includes(l.nombre.toLowerCase())
+        )
+        return { ...g, linea_id: match ? match.id : null }
+      })
+      setGrupos(mapeados)
+    } catch (e) {
+      setError(e.response?.data?.detail || 'Error al leer el archivo.')
+    } finally {
+      setParsing(false)
+    }
+  }
+
+  const handleMapeo = (idx, linea_id) => {
+    setGrupos(prev => prev.map((g, i) => i === idx ? { ...g, linea_id: linea_id ? parseInt(linea_id) : null } : g))
+  }
+
+  const handleGuardar = async () => {
+    setGuardando(true); setGuardadoMsg(null)
+    try {
+      const r = await axios.post('/api/numerico/confirmar', { mapeos: grupos })
+      setGuardadoMsg(`✅ ${r.data.guardados} registros guardados correctamente.`)
+    } catch (e) {
+      setGuardadoMsg('❌ Error al guardar.')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  const mapeoCompleto = grupos && grupos.some(g => g.linea_id !== null)
+
+  return (
+    <div className="bg-white rounded-2xl shadow p-5 space-y-4">
+      <h2 className="font-semibold text-gray-700">📊 Cargar Numérico desde Excel</h2>
+      <p className="text-sm text-gray-500">
+        Sube el archivo Excel de Numérico. La app detectará los grupos por línea y tripulación
+        (formato: <code className="bg-gray-100 px-1 rounded">GA Línea Tripulación (Supervisor)</code>).
+        Luego selecciona a qué línea corresponde cada grupo.
+      </p>
+
+      <div className="flex flex-wrap gap-3 items-center">
+        <input
+          type="file"
+          accept=".xlsx,.xls"
+          onChange={(e) => { setFile(e.target.files[0]); setGrupos(null); setGuardadoMsg(null) }}
+          className="text-sm border border-gray-300 rounded-lg px-3 py-2 cursor-pointer"
+        />
+        <button
+          onClick={handleParse}
+          disabled={!file || parsing}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
+        >
+          {parsing ? 'Leyendo…' : '🔍 Analizar Excel'}
+        </button>
+      </div>
+
+      {error && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg p-3">{error}</p>}
+
+      {grupos && (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead className="bg-gray-50 text-gray-600 border-b text-xs">
+                <tr>
+                  <th className="text-left p-2">Texto detectado en Excel</th>
+                  <th className="text-center p-2 w-16">Trip.</th>
+                  <th className="text-center p-2 w-20">Conteo</th>
+                  <th className="text-left p-2">→ Línea en App</th>
+                </tr>
+              </thead>
+              <tbody>
+                {grupos.map((g, i) => (
+                  <tr key={i} className={`border-t ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                    <td className="p-2 text-gray-700 font-mono text-xs">{g.texto_excel}</td>
+                    <td className="p-2 text-center">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                        g.tripulacion === 'A' ? 'bg-blue-100 text-blue-700' :
+                        g.tripulacion === 'B' ? 'bg-green-100 text-green-700' :
+                        'bg-orange-100 text-orange-700'
+                      }`}>{g.tripulacion}</span>
+                    </td>
+                    <td className="p-2 text-center font-bold text-blue-700">{g.conteo}</td>
+                    <td className="p-2">
+                      <select
+                        value={g.linea_id ?? ''}
+                        onChange={(e) => handleMapeo(i, e.target.value || null)}
+                        className={`w-full border rounded-lg px-2 py-1 text-xs outline-none ${
+                          g.linea_id ? 'border-green-400 bg-green-50' : 'border-gray-300'
+                        }`}
+                      >
+                        <option value="">— Ignorar este grupo —</option>
+                        {lineas.map(l => (
+                          <option key={l.id} value={l.id}>{l.area_nombre} › {l.nombre}</option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={handleGuardar}
+              disabled={guardando || !mapeoCompleto}
+              className="bg-green-600 text-white px-5 py-2 rounded-lg font-semibold text-sm hover:bg-green-700 disabled:bg-green-300 transition-colors"
+            >
+              {guardando ? 'Guardando…' : '💾 Guardar Numérico'}
+            </button>
+            <button
+              onClick={() => { setGrupos(null); setFile(null); setGuardadoMsg(null) }}
+              className="text-gray-500 text-sm hover:text-gray-700 underline"
+            >
+              Cancelar
+            </button>
+            {guardadoMsg && (
+              <span className={`text-sm font-medium ${guardadoMsg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>
+                {guardadoMsg}
+              </span>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function ConfigPage() {
   const [pin, setPin] = useState('')
   const [autenticado, setAutenticado] = useState(false)
@@ -254,6 +401,9 @@ export default function ConfigPage() {
           </div>
         </div>
       ))}
+
+      {/* ── Carga de Excel Numérico ──────────────────────────────────────────── */}
+      <CargaNumerico lineas={lineas} />
 
       {/* ── Cambiar PIN ──────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow p-5">

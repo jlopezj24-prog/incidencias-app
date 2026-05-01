@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import {
   BarChart,
@@ -107,7 +107,7 @@ function TablaEnsamble({ data, tripulacion }) {
             {data.map((area) => {
               const aLns = area.lineas
               return (
-                <>
+                <React.Fragment key={area.area}>
                   {/* Filas de líneas */}
                   {aLns.map((l, i) => (
                     <tr key={l.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
@@ -156,7 +156,7 @@ function TablaEnsamble({ data, tripulacion }) {
                       {sumaArea(aLns, 'total_incidencias')}
                     </td>
                   </tr>
-                </>
+                </React.Fragment>
               )
             })}
 

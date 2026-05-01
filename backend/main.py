@@ -343,7 +343,14 @@ async def parse_numerico_excel(file: UploadFile = File(...)):
         )
 
     import re
-    patron = re.compile(r'GA\s+(.+?)\s+([ABC])\s*\(', re.IGNORECASE)
+    # Palabras clave que identifican líneas que NO pertenecen a Ensamble General
+    EXCLUIR = [
+        'secuenciado', 'qlty', 'quality',
+    ]
+
+    # Más flexible: tripulación puede venir con o sin espacio antes del paréntesis,
+    # y el paréntesis puede no existir (trip al final de la cadena)
+    patron = re.compile(r'GA\s+(.+?)\s+([ABC])(?:\s*\(|$)', re.IGNORECASE)
     grupos: dict = {}
 
     for row in rows[header_row + 1:]:
@@ -353,6 +360,10 @@ async def parse_numerico_excel(file: UploadFile = File(...)):
             if m:
                 nombre = m.group(1).strip()
                 trip = m.group(2).upper()
+                # Filtrar líneas excluidas
+                nombre_lower = nombre.lower()
+                if any(ex in nombre_lower for ex in EXCLUIR):
+                    continue
                 key = (nombre, trip)
                 grupos[key] = grupos.get(key, 0) + 1
 

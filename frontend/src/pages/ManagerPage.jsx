@@ -122,10 +122,10 @@ function TablaEnsamble({ data, tripulacion }) {
             </tr>
           </thead>
           <tbody>
-            {data.map((area) => {
-              const aLns = area.lineas
+            {(data || []).map((area) => {
+              const aLns = Array.isArray(area.lineas) ? area.lineas : []
               return (
-                <React.Fragment key={area.area}>
+                <React.Fragment key={area.area || Math.random()}>
                   {/* Filas de líneas */}
                   {aLns.map((l, i) => (
                     <tr key={l.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
@@ -257,12 +257,12 @@ function EstadoDia() {
 
   if (error) return null
 
-  const pendientes = estado ? estado.lineas.filter(l => !l.cargado) : []
-  const cargadas = estado ? estado.lineas.filter(l => l.cargado) : []
+  const pendientes = estado ? (Array.isArray(estado.lineas) ? estado.lineas : []).filter(l => !l.cargado) : []
+  const cargadas = estado ? (Array.isArray(estado.lineas) ? estado.lineas : []).filter(l => l.cargado) : []
 
   // Agrupar por área
   const porArea = estado
-    ? estado.lineas.reduce((acc, l) => {
+    ? (Array.isArray(estado.lineas) ? estado.lineas : []).reduce((acc, l) => {
         if (!acc[l.area]) acc[l.area] = []
         acc[l.area].push(l)
         return acc
@@ -599,11 +599,11 @@ function ManagerPageInner() {
       {data && (
         <>
           {/* ── Tarjetas resumen por tipo ────────────────────────────────── */}
-          {data.por_tipo.length > 0 && (
+          {(data.por_tipo || []).length > 0 && (
             <div className="bg-white rounded-2xl shadow p-5">
               <h2 className="font-semibold text-gray-700 mb-4">Reporte Resumen Area Shift Leader</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-                {data.por_tipo.map((item, i) => (
+                {(data.por_tipo || []).map((item, i) => (
                   <div
                     key={i}
                     className="text-center p-3 rounded-xl border bg-gray-50"
@@ -623,7 +623,7 @@ function ManagerPageInner() {
           )}
 
           {/* ── Resumen por área ────────────────────────────────────────── */}
-          {data.por_area && data.por_area.length > 0 && (
+          {data.por_area && Array.isArray(data.por_area) && data.por_area.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {data.por_area.map((area, i) => (
                 <div key={i} className="bg-white rounded-2xl shadow p-5">
@@ -740,7 +740,7 @@ function ManagerPageInner() {
           {/* ── Tabla por línea ──────────────────────────────────────────── */}
           <div className="bg-white rounded-2xl shadow p-5">
             <h2 className="font-semibold text-gray-700 mb-4">Resumen por línea</h2>
-            {data.por_linea.length > 0 ? (
+            {(data.por_linea || []).length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-gray-600">
@@ -754,7 +754,7 @@ function ManagerPageInner() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.por_linea.map((row, i) => (
+                    {(data.por_linea || []).map((row, i) => (
                       <tr key={i} onClick={() => openTendencia(row)} className="border-t hover:bg-blue-50 align-top cursor-pointer transition-colors">
                         <td className="p-3 text-gray-500">{row.area}</td>
                         <td className="p-3 font-medium text-blue-700 underline decoration-dotted">{row.linea}</td>
@@ -881,7 +881,7 @@ function ManagerPageInner() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div className="bg-white rounded-2xl shadow p-5">
             <h2 className="font-semibold text-gray-700 mb-4">Incidencias por tipo</h2>
-            {data.por_tipo.length > 0 ? (
+            {(data.por_tipo || []).length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={data.por_tipo} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" />

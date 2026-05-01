@@ -4,8 +4,8 @@ import axios from 'axios'
 function CargaNumerico({ lineas }) {
   const [file, setFile] = useState(null)
   const [parsing, setParsing] = useState(false)
-  const [todosGrupos, setTodosGrupos] = useState(null)  // todos los del Excel
-  const [filtroTrip, setFiltroTrip] = useState('todos') // filtro de visualización
+  const [todosGrupos, setTodosGrupos] = useState(null)
+  const [filtroTrip, setFiltroTrip] = useState('todos')
   const [error, setError] = useState(null)
   const [guardando, setGuardando] = useState(false)
   const [guardadoMsg, setGuardadoMsg] = useState(null)
@@ -19,13 +19,7 @@ function CargaNumerico({ lineas }) {
       const r = await axios.post('/api/numerico/parse-excel', fd, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
-      const mapeados = r.data.map(g => {
-        const match = lineas.find(l =>
-          g.texto_excel.toLowerCase().includes(l.nombre.toLowerCase())
-        )
-        return { ...g, linea_id: match ? match.id : null }
-      })
-      setTodosGrupos(mapeados)
+      setTodosGrupos(r.data)
     } catch (e) {
       setError(e.response?.data?.detail || 'Error al leer el archivo.')
     } finally {
@@ -34,7 +28,6 @@ function CargaNumerico({ lineas }) {
   }
 
   const handleMapeo = (idx, linea_id) => {
-    // idx es el índice en todosGrupos (no en los filtrados)
     setTodosGrupos(prev => prev.map((g, i) => i === idx ? { ...g, linea_id: linea_id ? parseInt(linea_id) : null } : g))
   }
 
@@ -55,21 +48,20 @@ function CargaNumerico({ lineas }) {
     return <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${cls}`}>{t}</span>
   }
 
-  // Grupos visibles según filtro
   const gruposVisibles = todosGrupos
     ? (filtroTrip === 'todos' ? todosGrupos : todosGrupos.filter(g => g.tripulacion === filtroTrip))
     : []
 
   const trips = todosGrupos ? [...new Set(todosGrupos.map(g => g.tripulacion))].sort() : []
   const mapeoCompleto = todosGrupos && todosGrupos.some(g => g.linea_id !== null)
+  const sinMapeo = todosGrupos ? todosGrupos.filter(g => !g.auto_mapeado).length : 0
 
   return (
     <div className="bg-white rounded-2xl shadow p-5 space-y-4">
       <h2 className="font-semibold text-gray-700">📊 Cargar Numérico desde Excel</h2>
       <p className="text-sm text-gray-500">
-        Sube el archivo Excel de Numérico. La app detectará los grupos por línea y tripulación
-        (formato: <code className="bg-gray-100 px-1 rounded">GA Línea Tripulación (Supervisor)</code>).
-        Luego selecciona a qué línea corresponde cada grupo.
+        Sube el archivo Excel de Numérico. La app detectará automáticamente cada línea y tripulación
+        usando la tabla de nomenclaturas configurada. Si hay grupos sin mapear, podrás asignarlos manualmente.
       </p>
 
       <div className="flex flex-wrap gap-3 items-center">
@@ -92,6 +84,18 @@ function CargaNumerico({ lineas }) {
 
       {todosGrupos && (
         <>
+          {/* Resumen auto-mapeo */}
+          <div className="flex gap-3 flex-wrap text-xs">
+            <span className="bg-green-50 border border-green-200 text-green-700 px-3 py-1 rounded-full font-medium">
+              ✅ Auto-mapeados: {todosGrupos.filter(g => g.auto_mapeado).length}
+            </span>
+            {sinMapeo > 0 && (
+              <span className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-3 py-1 rounded-full font-medium">
+                ⚠️ Sin mapear: {sinMapeo} — asigna manualmente abajo
+              </span>
+            )}
+          </div>
+
           {/* Filtro por tripulación */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-gray-500 font-medium">Filtrar por tripulación:</span>
@@ -123,11 +127,13 @@ function CargaNumerico({ lineas }) {
               </thead>
               <tbody>
                 {gruposVisibles.map((g) => {
-                  // Encontrar índice real en todosGrupos para el mapeo
                   const realIdx = todosGrupos.indexOf(g)
                   return (
-                    <tr key={realIdx} className={`border-t ${realIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                      <td className="p-2 text-gray-700 text-xs font-medium">{g.texto_excel}</td>
+                    <tr key={realIdx} className={`border-t ${g.auto_mapeado ? (realIdx % 2 === 0 ? 'bg-green-50/30' : 'bg-green-50/60') : 'bg-yellow-50'}`}>
+                      <td className="p-2 text-gray-700 text-xs font-medium">
+                        {g.texto_excel}
+                        {g.auto_mapeado && <span className="ml-1 text-green-500 text-xs">✓</span>}
+                      </td>
                       <td className="p-2 text-xs text-gray-500">
                         {g.supervisores && g.supervisores.length > 0
                           ? g.supervisores.join(', ')
@@ -136,18 +142,24 @@ function CargaNumerico({ lineas }) {
                       <td className="p-2 text-center">{tripBadge(g.tripulacion)}</td>
                       <td className="p-2 text-center font-bold text-blue-700">{g.conteo}</td>
                       <td className="p-2">
-                        <select
-                          value={g.linea_id ?? ''}
-                          onChange={(e) => handleMapeo(realIdx, e.target.value || null)}
-                          className={`w-full border rounded-lg px-2 py-1 text-xs outline-none ${
-                            g.linea_id ? 'border-green-400 bg-green-50' : 'border-gray-300'
-                          }`}
-                        >
-                          <option value="">— Ignorar este grupo —</option>
-                          {lineas.map(l => (
-                            <option key={l.id} value={l.id}>{l.area_nombre} › {l.nombre}</option>
-                          ))}
-                        </select>
+                        {g.auto_mapeado && g.linea_nombre_ref ? (
+                          <span className="text-green-700 text-xs font-semibold bg-green-100 px-2 py-1 rounded-lg">
+                            {g.linea_nombre_ref}
+                          </span>
+                        ) : (
+                          <select
+                            value={g.linea_id ?? ''}
+                            onChange={(e) => handleMapeo(realIdx, e.target.value || null)}
+                            className={`w-full border rounded-lg px-2 py-1 text-xs outline-none ${
+                              g.linea_id ? 'border-green-400 bg-green-50' : 'border-yellow-400 bg-yellow-50'
+                            }`}
+                          >
+                            <option value="">— Seleccionar línea —</option>
+                            {lineas.map(l => (
+                              <option key={l.id} value={l.id}>{l.area_nombre} › {l.nombre}</option>
+                            ))}
+                          </select>
+                        )}
                       </td>
                     </tr>
                   )

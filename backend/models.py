@@ -62,3 +62,13 @@ class LineaNumerico(Base):
     tripulacion = Column(String, nullable=False)
     valor = Column(Integer, nullable=False, default=0)
     __table_args__ = (UniqueConstraint("linea_id", "tripulacion", name="uq_linea_numerico_trip"),)
+
+
+class NomenclaturaMapa(Base):
+    """Mapeo de patrones de texto en Excel → línea + tripulación de la app."""
+    __tablename__ = "nomenclatura_mapa"
+    id = Column(Integer, primary_key=True, index=True)
+    patron = Column(String, nullable=False)          # substring a buscar en la celda Excel
+    tripulacion = Column(String, nullable=False)     # A, B o C
+    linea_id = Column(Integer, ForeignKey("lineas.id"), nullable=False)
+    linea_nombre_ref = Column(String, nullable=False) # nombre app, para referencia visual

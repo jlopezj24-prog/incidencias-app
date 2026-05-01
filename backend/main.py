@@ -69,8 +69,26 @@ async def startup_event():
     except Exception:
         pass
 
+    # Create nomenclatura_mapa table if not exists
+    try:
+        with engine.connect() as conn:
+            conn.execute(__import__('sqlalchemy').text(
+                """CREATE TABLE IF NOT EXISTS nomenclatura_mapa (
+                    id SERIAL PRIMARY KEY,
+                    patron VARCHAR NOT NULL,
+                    tripulacion VARCHAR NOT NULL,
+                    linea_id INTEGER NOT NULL REFERENCES lineas(id),
+                    linea_nombre_ref VARCHAR NOT NULL
+                )"""
+            ))
+            conn.commit()
+    except Exception:
+        pass
+
     from seed import seed
     seed()
+    from seed_nomenclaturas import seed_nomenclaturas
+    seed_nomenclaturas()
 
 
 # ── Schemas ────────────────────────────────────────────────────────────────────
@@ -287,8 +305,8 @@ class NumericoConfirmarIn(BaseModel):
 
 
 @app.post("/api/numerico/parse-excel")
-async def parse_numerico_excel(file: UploadFile = File(...)):
-    """Lee el Excel y devuelve los grupos únicos detectados (texto, tripulación, conteo)."""
+async def parse_numerico_excel(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Lee el Excel y devuelve grupos únicos usando la tabla nomenclatura_mapa para auto-mapear."""
     try:
         from openpyxl import load_workbook
     except ImportError:
@@ -301,90 +319,154 @@ async def parse_numerico_excel(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=f"No se pudo leer el archivo Excel: {e}")
 
     ws = wb.active
-
-    # Buscar la columna que contiene patrones de línea+tripulación
-    # Busca la primera fila con datos para identificar encabezados
-    headers = []
-    col_idx = None
     rows = list(ws.iter_rows(values_only=True))
     if not rows:
         raise HTTPException(status_code=400, detail="El archivo está vacío")
 
-    # Detectar fila de encabezados (primera fila con texto)
+    # Detectar fila de encabezados
     header_row = 0
+    headers = []
     for i, row in enumerate(rows):
         if any(c is not None for c in row):
             headers = [str(c).strip() if c else '' for c in row]
             header_row = i
             break
 
-    # Buscar columna por nombre parcial (Supervisory Organization, org, etc.)
+    # Buscar columna Supervisory Organization
+    col_idx = None
     for i, h in enumerate(headers):
         if 'supervisor' in h.lower() or 'supervisory' in h.lower() or 'org' in h.lower():
             col_idx = i
             break
 
-    # Si no se encontró por nombre, buscar la columna que más coincide con el patrón
     if col_idx is None:
         import re
-        patron = re.compile(r'GA\s+.+\s+[ABC]\b', re.IGNORECASE)
-        col_counts = {}
+        pat_detect = re.compile(r'(GA\s+.+\s+[ABC]\b|Group Leader GA)', re.IGNORECASE)
+        col_counts: dict = {}
         for row in rows[header_row + 1:]:
             for ci, cell in enumerate(row):
-                if cell and patron.search(str(cell)):
+                if cell and pat_detect.search(str(cell)):
                     col_counts[ci] = col_counts.get(ci, 0) + 1
         if col_counts:
             col_idx = max(col_counts, key=col_counts.get)
 
     if col_idx is None:
-        raise HTTPException(
-            status_code=400,
-            detail="No se encontró una columna con datos de línea/tripulación. Asegúrate de que el archivo contenga una columna con el formato 'GA Línea X Tripulación'."
-        )
+        raise HTTPException(status_code=400, detail="No se encontró columna Supervisory Organization.")
+
+    # Cargar patrones de la BD para auto-mapear
+    mapa_db = db.query(models.NomenclaturaMapa).all()
+    # Ordenar de más largo a más corto para evitar falsos positivos de substrings
+    mapa_db.sort(key=lambda m: -len(m.patron))
 
     import re
-    # Palabras clave que identifican líneas que NO pertenecen a Ensamble General
-    EXCLUIR = [
-        'secuenciado', 'qlty', 'quality',
-    ]
+    EXCLUIR = ['secuenciado', 'qlty', 'quality']
+    # Regex para extraer supervisor del paréntesis
+    re_supervisor = re.compile(r'\(([^)]+)\)')
 
-    # Patron: captura nombre de línea, tripulación y supervisor (dentro de paréntesis)
-    patron = re.compile(r'GA\s+(.+?)\s+([ABC])(?:\s*\(([^)]*)\)|$)', re.IGNORECASE)
-    grupos: dict = {}  # key=(nombre, trip) → {conteo, supervisores}
+    grupos: dict = {}  # key=(texto_celda_grupo, trip, linea_id) → {conteo, supervisores}
+    sin_mapeo: dict = {}  # key=(texto_excel, trip) → {conteo, supervisores} — no encontrados en mapa
 
     for row in rows[header_row + 1:]:
-        if col_idx < len(row) and row[col_idx]:
-            celda = str(row[col_idx]).strip()
-            m = patron.search(celda)
-            if m:
-                nombre = m.group(1).strip()
-                trip = m.group(2).upper()
-                supervisor = m.group(3).strip() if m.group(3) else ''
-                nombre_lower = nombre.lower()
-                if any(ex in nombre_lower for ex in EXCLUIR):
-                    continue
-                key = (nombre, trip)
-                if key not in grupos:
-                    grupos[key] = {"conteo": 0, "supervisores": set()}
-                grupos[key]["conteo"] += 1
-                if supervisor:
-                    grupos[key]["supervisores"].add(supervisor)
+        if col_idx >= len(row) or not row[col_idx]:
+            continue
+        celda = str(row[col_idx]).strip()
+        celda_lower = celda.lower()
 
-    if not grupos:
-        raise HTTPException(
-            status_code=400,
-            detail="No se encontraron datos con el formato 'GA {Línea} {Tripulación} ({Supervisor})' en el archivo."
-        )
+        # Filtrar exclusiones
+        if any(ex in celda_lower for ex in EXCLUIR):
+            continue
 
-    return [
-        {
-            "texto_excel": k[0],
-            "tripulacion": k[1],
-            "conteo": v["conteo"],
-            "supervisores": sorted(v["supervisores"]),
-        }
-        for k, v in sorted(grupos.items(), key=lambda x: (x[0][1], x[0][0]))
-    ]
+        # Extraer supervisor
+        m_sup = re_supervisor.search(celda)
+        supervisor = m_sup.group(1).strip() if m_sup else ''
+
+        # Buscar patrón en la BD
+        matched = None
+        for mapa in mapa_db:
+            if mapa.patron.lower() in celda_lower:
+                matched = mapa
+                break
+
+        if matched:
+            key = (matched.patron, matched.tripulacion, matched.linea_id)
+            if key not in grupos:
+                grupos[key] = {"texto_excel": matched.patron, "tripulacion": matched.tripulacion,
+                               "linea_id": matched.linea_id, "linea_nombre_ref": matched.linea_nombre_ref,
+                               "conteo": 0, "supervisores": set()}
+            grupos[key]["conteo"] += 1
+            if supervisor:
+                grupos[key]["supervisores"].add(supervisor)
+        else:
+            # No encontrado en mapa — extraer texto para mostrar al BM
+            # Intentar detectar tripulación manualmente
+            trip_detect = re.search(r'\bGroup Leader GA ([ABC])\b|\bGA\s+.+?\s+([ABC])\s*(?:\(|$)', celda, re.IGNORECASE)
+            trip = 'A'
+            if trip_detect:
+                trip = (trip_detect.group(1) or trip_detect.group(2) or 'A').upper()
+            # Extraer texto de línea
+            nombre_m = re.search(r'(?:Group Leader )?GA\s+(?:[ABC]\s+)?(.+?)\s+[ABC]\s*(?:\(|$)', celda, re.IGNORECASE)
+            texto = nombre_m.group(1).strip() if nombre_m else celda[:60]
+            key2 = (texto, trip)
+            if key2 not in sin_mapeo:
+                sin_mapeo[key2] = {"texto_excel": texto, "tripulacion": trip,
+                                   "linea_id": None, "linea_nombre_ref": None,
+                                   "conteo": 0, "supervisores": set()}
+            sin_mapeo[key2]["conteo"] += 1
+            if supervisor:
+                sin_mapeo[key2]["supervisores"].add(supervisor)
+
+    resultado = []
+    for v in grupos.values():
+        resultado.append({**v, "supervisores": sorted(v["supervisores"]), "auto_mapeado": True})
+    for v in sin_mapeo.values():
+        resultado.append({**v, "supervisores": sorted(v["supervisores"]), "auto_mapeado": False})
+
+    resultado.sort(key=lambda x: (x["tripulacion"], x.get("linea_nombre_ref") or x["texto_excel"]))
+    return resultado
+
+
+@app.get("/api/nomenclatura-mapa")
+def get_nomenclatura_mapa(db: Session = Depends(get_db)):
+    """Devuelve todos los patrones de nomenclatura configurados."""
+    rows = db.query(models.NomenclaturaMapa).order_by(
+        models.NomenclaturaMapa.tripulacion, models.NomenclaturaMapa.linea_nombre_ref
+    ).all()
+    return [{"id": r.id, "patron": r.patron, "tripulacion": r.tripulacion,
+             "linea_id": r.linea_id, "linea_nombre_ref": r.linea_nombre_ref} for r in rows]
+
+
+class NomenclaturaIn(BaseModel):
+    patron: str
+    tripulacion: str
+    linea_id: int
+    linea_nombre_ref: str
+
+
+@app.post("/api/nomenclatura-mapa")
+def crear_nomenclatura(data: NomenclaturaIn, db: Session = Depends(get_db)):
+    row = models.NomenclaturaMapa(**data.dict())
+    db.add(row); db.commit(); db.refresh(row)
+    return {"id": row.id, **data.dict()}
+
+
+@app.put("/api/nomenclatura-mapa/{id}")
+def actualizar_nomenclatura(id: int, data: NomenclaturaIn, db: Session = Depends(get_db)):
+    row = db.query(models.NomenclaturaMapa).filter(models.NomenclaturaMapa.id == id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="No encontrado")
+    for k, v in data.dict().items():
+        setattr(row, k, v)
+    db.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/nomenclatura-mapa/{id}")
+def eliminar_nomenclatura(id: int, db: Session = Depends(get_db)):
+    row = db.query(models.NomenclaturaMapa).filter(models.NomenclaturaMapa.id == id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="No encontrado")
+    db.delete(row); db.commit()
+    return {"ok": True}
 
 
 @app.post("/api/numerico/confirmar")
@@ -416,6 +498,9 @@ def get_numerico(db: Session = Depends(get_db)):
     """Devuelve todos los numéricos guardados por línea y tripulación."""
     rows = db.query(models.LineaNumerico).all()
     return [{"linea_id": r.linea_id, "tripulacion": r.tripulacion, "valor": r.valor} for r in rows]
+
+
+@app.get("/api/colaboradores")
 def get_colaboradores(
     area_id: Optional[int] = None,
     linea_id: Optional[int] = None,

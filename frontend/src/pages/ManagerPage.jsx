@@ -378,17 +378,21 @@ export default function ManagerPage() {
       try {
         const r = await axios.get('/api/dashboard', { params })
         setData(r.data)
-        // También cargar colaboradores con los mismos filtros
-        const r2 = await axios.get('/api/colaboradores', { params })
-        setColaboradores(r2.data)
+        // Cargar colaboradores — independiente para no crashear si falla
+        try {
+          const r2 = await axios.get('/api/colaboradores', { params })
+          setColaboradores(r2.data)
+        } catch { setColaboradores([]) }
         // Cargar datos de plantilla ensamble (solo por fecha/tripulacion, sin filtro de línea/área)
         const ensambleParams = {
           fecha_inicio: params.fecha_inicio,
           fecha_fin: params.fecha_fin,
         }
         if (params.tripulacion) ensambleParams.tripulacion = params.tripulacion
-        const r3 = await axios.get('/api/reporte-ensamble', { params: ensambleParams })
-        setEnsambleData({ data: r3.data, tripulacion: params.tripulacion || '' })
+        try {
+          const r3 = await axios.get('/api/reporte-ensamble', { params: ensambleParams })
+          setEnsambleData({ data: r3.data, tripulacion: params.tripulacion || '' })
+        } catch { setEnsambleData(null) }
       } finally {
         setLoading(false)
       }

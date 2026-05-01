@@ -526,14 +526,8 @@ def actualizar_numerico(linea_id: int, tripulacion: str, data: NumericoValorIn, 
     db.commit()
     return {"ok": True}
 
+@app.get("/api/colaboradores")
 def get_colaboradores(
-    area_id: Optional[int] = None,
-    linea_id: Optional[int] = None,
-    tripulacion: Optional[str] = Query(default=None),
-    fecha_inicio: Optional[date_type] = Query(default=None),
-    fecha_fin: Optional[date_type] = Query(default=None),
-    db: Session = Depends(get_db),
-):
     """Devuelve incidencias de Incapacidad y Restricción Médica con nombre de colaborador."""
     today = date_type.today()
     if not fecha_inicio:

@@ -677,11 +677,11 @@ function ManagerPageInner() {
           )}
 
           {/* ── Tabla resumen por tipo y área ──────────────────────────── */}
-          {data.por_area && data.por_area.length > 0 && (() => {
+          {data.por_area && Array.isArray(data.por_area) && data.por_area.length > 0 && (() => {
             // Construir mapa tipo -> { total, por_area }
             const tipoMap = {}
             data.por_area.forEach(area => {
-              area.desglose.forEach(d => {
+              (Array.isArray(area.desglose) ? area.desglose : []).forEach(d => {
                 if (!tipoMap[d.tipo]) tipoMap[d.tipo] = { total: 0, areas: {} }
                 tipoMap[d.tipo].total += d.cantidad
                 tipoMap[d.tipo].areas[area.area] = (tipoMap[d.tipo].areas[area.area] || 0) + d.cantidad

@@ -348,10 +348,9 @@ async def parse_numerico_excel(file: UploadFile = File(...)):
         'secuenciado', 'qlty', 'quality',
     ]
 
-    # Más flexible: tripulación puede venir con o sin espacio antes del paréntesis,
-    # y el paréntesis puede no existir (trip al final de la cadena)
-    patron = re.compile(r'GA\s+(.+?)\s+([ABC])(?:\s*\(|$)', re.IGNORECASE)
-    grupos: dict = {}
+    # Patron: captura nombre de línea, tripulación y supervisor (dentro de paréntesis)
+    patron = re.compile(r'GA\s+(.+?)\s+([ABC])(?:\s*\(([^)]*)\)|$)', re.IGNORECASE)
+    grupos: dict = {}  # key=(nombre, trip) → {conteo, supervisores}
 
     for row in rows[header_row + 1:]:
         if col_idx < len(row) and row[col_idx]:
@@ -360,12 +359,16 @@ async def parse_numerico_excel(file: UploadFile = File(...)):
             if m:
                 nombre = m.group(1).strip()
                 trip = m.group(2).upper()
-                # Filtrar líneas excluidas
+                supervisor = m.group(3).strip() if m.group(3) else ''
                 nombre_lower = nombre.lower()
                 if any(ex in nombre_lower for ex in EXCLUIR):
                     continue
                 key = (nombre, trip)
-                grupos[key] = grupos.get(key, 0) + 1
+                if key not in grupos:
+                    grupos[key] = {"conteo": 0, "supervisores": set()}
+                grupos[key]["conteo"] += 1
+                if supervisor:
+                    grupos[key]["supervisores"].add(supervisor)
 
     if not grupos:
         raise HTTPException(
@@ -374,7 +377,12 @@ async def parse_numerico_excel(file: UploadFile = File(...)):
         )
 
     return [
-        {"texto_excel": k[0], "tripulacion": k[1], "conteo": v}
+        {
+            "texto_excel": k[0],
+            "tripulacion": k[1],
+            "conteo": v["conteo"],
+            "supervisores": sorted(v["supervisores"]),
+        }
         for k, v in sorted(grupos.items(), key=lambda x: (x[0][1], x[0][0]))
     ]
 

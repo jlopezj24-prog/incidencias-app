@@ -4,28 +4,28 @@ import axios from 'axios'
 function CargaNumerico({ lineas }) {
   const [file, setFile] = useState(null)
   const [parsing, setParsing] = useState(false)
-  const [grupos, setGrupos] = useState(null)   // [{texto_excel, tripulacion, conteo, linea_id}]
+  const [todosGrupos, setTodosGrupos] = useState(null)  // todos los del Excel
+  const [filtroTrip, setFiltroTrip] = useState('todos') // filtro de visualización
   const [error, setError] = useState(null)
   const [guardando, setGuardando] = useState(false)
   const [guardadoMsg, setGuardadoMsg] = useState(null)
 
   const handleParse = async () => {
     if (!file) return
-    setParsing(true); setError(null); setGrupos(null); setGuardadoMsg(null)
+    setParsing(true); setError(null); setTodosGrupos(null); setGuardadoMsg(null)
     try {
       const fd = new FormData()
       fd.append('file', file)
       const r = await axios.post('/api/numerico/parse-excel', fd, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
-      // Intentar auto-mapear: buscar línea cuyo nombre aparezca en el texto_excel
       const mapeados = r.data.map(g => {
         const match = lineas.find(l =>
           g.texto_excel.toLowerCase().includes(l.nombre.toLowerCase())
         )
         return { ...g, linea_id: match ? match.id : null }
       })
-      setGrupos(mapeados)
+      setTodosGrupos(mapeados)
     } catch (e) {
       setError(e.response?.data?.detail || 'Error al leer el archivo.')
     } finally {
@@ -34,13 +34,14 @@ function CargaNumerico({ lineas }) {
   }
 
   const handleMapeo = (idx, linea_id) => {
-    setGrupos(prev => prev.map((g, i) => i === idx ? { ...g, linea_id: linea_id ? parseInt(linea_id) : null } : g))
+    // idx es el índice en todosGrupos (no en los filtrados)
+    setTodosGrupos(prev => prev.map((g, i) => i === idx ? { ...g, linea_id: linea_id ? parseInt(linea_id) : null } : g))
   }
 
   const handleGuardar = async () => {
     setGuardando(true); setGuardadoMsg(null)
     try {
-      const r = await axios.post('/api/numerico/confirmar', { mapeos: grupos })
+      const r = await axios.post('/api/numerico/confirmar', { mapeos: todosGrupos })
       setGuardadoMsg(`✅ ${r.data.guardados} registros guardados correctamente.`)
     } catch (e) {
       setGuardadoMsg('❌ Error al guardar.')
@@ -49,7 +50,18 @@ function CargaNumerico({ lineas }) {
     }
   }
 
-  const mapeoCompleto = grupos && grupos.some(g => g.linea_id !== null)
+  const tripBadge = (t) => {
+    const cls = t === 'A' ? 'bg-blue-100 text-blue-700' : t === 'B' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
+    return <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${cls}`}>{t}</span>
+  }
+
+  // Grupos visibles según filtro
+  const gruposVisibles = todosGrupos
+    ? (filtroTrip === 'todos' ? todosGrupos : todosGrupos.filter(g => g.tripulacion === filtroTrip))
+    : []
+
+  const trips = todosGrupos ? [...new Set(todosGrupos.map(g => g.tripulacion))].sort() : []
+  const mapeoCompleto = todosGrupos && todosGrupos.some(g => g.linea_id !== null)
 
   return (
     <div className="bg-white rounded-2xl shadow p-5 space-y-4">
@@ -64,7 +76,7 @@ function CargaNumerico({ lineas }) {
         <input
           type="file"
           accept=".xlsx,.xls"
-          onChange={(e) => { setFile(e.target.files[0]); setGrupos(null); setGuardadoMsg(null) }}
+          onChange={(e) => { setFile(e.target.files[0]); setTodosGrupos(null); setGuardadoMsg(null) }}
           className="text-sm border border-gray-300 rounded-lg px-3 py-2 cursor-pointer"
         />
         <button
@@ -78,46 +90,68 @@ function CargaNumerico({ lineas }) {
 
       {error && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg p-3">{error}</p>}
 
-      {grupos && (
+      {todosGrupos && (
         <>
+          {/* Filtro por tripulación */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-500 font-medium">Filtrar por tripulación:</span>
+            {['todos', ...trips].map(t => (
+              <button
+                key={t}
+                onClick={() => setFiltroTrip(t)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                  filtroTrip === t
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                }`}
+              >
+                {t === 'todos' ? `Todas (${todosGrupos.length})` : `Trip. ${t} (${todosGrupos.filter(g => g.tripulacion === t).length})`}
+              </button>
+            ))}
+          </div>
+
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead className="bg-gray-50 text-gray-600 border-b text-xs">
                 <tr>
                   <th className="text-left p-2">Texto detectado en Excel</th>
+                  <th className="text-left p-2">Supervisor(es)</th>
                   <th className="text-center p-2 w-16">Trip.</th>
                   <th className="text-center p-2 w-20">Conteo</th>
                   <th className="text-left p-2">→ Línea en App</th>
                 </tr>
               </thead>
               <tbody>
-                {grupos.map((g, i) => (
-                  <tr key={i} className={`border-t ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                    <td className="p-2 text-gray-700 font-mono text-xs">{g.texto_excel}</td>
-                    <td className="p-2 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                        g.tripulacion === 'A' ? 'bg-blue-100 text-blue-700' :
-                        g.tripulacion === 'B' ? 'bg-green-100 text-green-700' :
-                        'bg-orange-100 text-orange-700'
-                      }`}>{g.tripulacion}</span>
-                    </td>
-                    <td className="p-2 text-center font-bold text-blue-700">{g.conteo}</td>
-                    <td className="p-2">
-                      <select
-                        value={g.linea_id ?? ''}
-                        onChange={(e) => handleMapeo(i, e.target.value || null)}
-                        className={`w-full border rounded-lg px-2 py-1 text-xs outline-none ${
-                          g.linea_id ? 'border-green-400 bg-green-50' : 'border-gray-300'
-                        }`}
-                      >
-                        <option value="">— Ignorar este grupo —</option>
-                        {lineas.map(l => (
-                          <option key={l.id} value={l.id}>{l.area_nombre} › {l.nombre}</option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                ))}
+                {gruposVisibles.map((g) => {
+                  // Encontrar índice real en todosGrupos para el mapeo
+                  const realIdx = todosGrupos.indexOf(g)
+                  return (
+                    <tr key={realIdx} className={`border-t ${realIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                      <td className="p-2 text-gray-700 text-xs font-medium">{g.texto_excel}</td>
+                      <td className="p-2 text-xs text-gray-500">
+                        {g.supervisores && g.supervisores.length > 0
+                          ? g.supervisores.join(', ')
+                          : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="p-2 text-center">{tripBadge(g.tripulacion)}</td>
+                      <td className="p-2 text-center font-bold text-blue-700">{g.conteo}</td>
+                      <td className="p-2">
+                        <select
+                          value={g.linea_id ?? ''}
+                          onChange={(e) => handleMapeo(realIdx, e.target.value || null)}
+                          className={`w-full border rounded-lg px-2 py-1 text-xs outline-none ${
+                            g.linea_id ? 'border-green-400 bg-green-50' : 'border-gray-300'
+                          }`}
+                        >
+                          <option value="">— Ignorar este grupo —</option>
+                          {lineas.map(l => (
+                            <option key={l.id} value={l.id}>{l.area_nombre} › {l.nombre}</option>
+                          ))}
+                        </select>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -131,7 +165,7 @@ function CargaNumerico({ lineas }) {
               {guardando ? 'Guardando…' : '💾 Guardar Numérico'}
             </button>
             <button
-              onClick={() => { setGrupos(null); setFile(null); setGuardadoMsg(null) }}
+              onClick={() => { setTodosGrupos(null); setFile(null); setGuardadoMsg(null) }}
               className="text-gray-500 text-sm hover:text-gray-700 underline"
             >
               Cancelar

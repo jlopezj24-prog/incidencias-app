@@ -1,5 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
+
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(e) { return { error: e } }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="bg-red-50 border border-red-300 rounded-2xl p-6 text-center">
+          <p className="text-red-700 font-bold mb-2">⚠️ Error al cargar el dashboard</p>
+          <p className="text-red-500 text-sm font-mono">{String(this.state.error)}</p>
+          <button onClick={() => this.setState({ error: null })} className="mt-3 bg-red-600 text-white px-4 py-2 rounded-lg text-sm">Reintentar</button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 import {
   BarChart,
   Bar,
@@ -71,7 +88,8 @@ function letsLibresArea(lineas) {
 }
 
 function TablaEnsamble({ data, tripulacion }) {
-  const grandLineas = data.flatMap(a => a.lineas)
+  if (!data || !Array.isArray(data)) return null
+  const grandLineas = data.flatMap(a => Array.isArray(a.lineas) ? a.lineas : [])
   const thCls = 'px-2 py-1.5 text-center text-xs font-bold uppercase border border-blue-800'
   const tdCls = (bold) => `px-2 py-1 text-center text-xs border border-gray-200 ${bold ? 'font-bold' : ''}`
   const tdName = 'px-2 py-1 text-xs font-medium border border-gray-200 whitespace-nowrap'
@@ -346,7 +364,7 @@ const TIPO_COLORS = [
   '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6b7280',
 ]
 
-export default function ManagerPage() {
+function ManagerPageInner() {
   const [areas, setAreas] = useState([])
   const [lineas, setLineas] = useState([])
   const [selectedAreaId, setSelectedAreaId] = useState('')
@@ -569,9 +587,13 @@ export default function ManagerPage() {
       </section>
 
       {/* ── TABLA INCIDENCIAS ENSAMBLE ───────────────────────────────────── */}
-      {ensambleData && ensambleData.data.length > 0 && (
-        <TablaEnsamble data={ensambleData.data} tripulacion={ensambleData.tripulacion} />
-      )}
+      {ensambleData && Array.isArray(ensambleData.data) && ensambleData.data.length > 0 && (() => {
+        try {
+          return <TablaEnsamble data={ensambleData.data} tripulacion={ensambleData.tripulacion} />
+        } catch (e) {
+          return <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-600">Error al renderizar tabla ensamble: {String(e)}</div>
+        }
+      })()}
 
       {/* ── KPIs ─────────────────────────────────────────────────────────── */}
       {data && (
@@ -972,5 +994,13 @@ export default function ManagerPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function ManagerPage() {
+  return (
+    <ErrorBoundary>
+      <ManagerPageInner />
+    </ErrorBoundary>
   )
 }

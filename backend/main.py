@@ -360,11 +360,10 @@ async def parse_numerico_excel(file: UploadFile = File(...), db: Session = Depen
 
     import re
     EXCLUIR = ['secuenciado', 'qlty', 'quality']
-    # Regex para extraer supervisor del paréntesis
     re_supervisor = re.compile(r'\(([^)]+)\)')
 
-    grupos: dict = {}  # key=(texto_celda_grupo, trip, linea_id) → {conteo, supervisores}
-    sin_mapeo: dict = {}  # key=(texto_excel, trip) → {conteo, supervisores} — no encontrados en mapa
+    grupos: dict = {}
+    sin_mapeo: dict = {}
 
     for row in rows[header_row + 1:]:
         if col_idx >= len(row) or not row[col_idx]:
@@ -372,7 +371,11 @@ async def parse_numerico_excel(file: UploadFile = File(...), db: Session = Depen
         celda = str(row[col_idx]).strip()
         celda_lower = celda.lower()
 
-        # Filtrar exclusiones
+        # Solo procesar filas de líneas GA — ignorar Pool, New Hiring, Controles, etc.
+        if ' ga ' not in celda_lower and 'group leader ga' not in celda_lower:
+            continue
+
+        # Filtrar exclusiones (secuenciado, qlty, quality)
         if any(ex in celda_lower for ex in EXCLUIR):
             continue
 

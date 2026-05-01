@@ -399,7 +399,7 @@ function ManagerPageInner() {
         // Cargar colaboradores — independiente para no crashear si falla
         try {
           const r2 = await axios.get('/api/colaboradores', { params })
-          setColaboradores(r2.data)
+          setColaboradores(Array.isArray(r2.data) ? r2.data : [])
         } catch { setColaboradores([]) }
         // Cargar datos de plantilla ensamble (solo por fecha/tripulacion, sin filtro de línea/área)
         const ensambleParams = {
@@ -659,7 +659,7 @@ function ManagerPageInner() {
                   )}
 
                   {/* Desglose por tipo */}
-                  {area.desglose.length > 0 && (
+                  {Array.isArray(area.desglose) && area.desglose.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {area.desglose.map((d, j) => (
                         <span
@@ -791,7 +791,7 @@ function ManagerPageInner() {
                           )}
                         </td>
                         <td className="p-3">
-                          {row.desglose && row.desglose.length > 0 ? (
+                          {row.desglose && Array.isArray(row.desglose) && row.desglose.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
                               {row.desglose.map((d, j) => (
                                 <span
@@ -967,7 +967,7 @@ function ManagerPageInner() {
                   <div className="mt-4">
                     <h3 className="text-sm font-semibold text-gray-600 mb-2">Desglose por tipo</h3>
                     <div className="flex flex-wrap gap-2">
-                      {tendenciaLinea.datos.por_tipo.map((t, i) => (
+                      {(tendenciaLinea.datos.por_tipo || []).map((t, i) => (
                         <span key={i} className="bg-blue-50 text-blue-700 border border-blue-100 px-3 py-1 rounded-full text-sm font-semibold">
                           {t.total} {t.tipo}
                         </span>

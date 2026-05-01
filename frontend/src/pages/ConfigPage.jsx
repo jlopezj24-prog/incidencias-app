@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 
-function CargaNumerico({ lineas }) {
+function CargaNumerico({ lineas, onGuardado }) {
   const [file, setFile] = useState(null)
   const [parsing, setParsing] = useState(false)
   const [todosGrupos, setTodosGrupos] = useState(null)
@@ -36,6 +36,7 @@ function CargaNumerico({ lineas }) {
     try {
       const r = await axios.post('/api/numerico/confirmar', { mapeos: todosGrupos })
       setGuardadoMsg(`✅ ${r.data.guardados} registros guardados correctamente.`)
+      if (onGuardado) onGuardado()  // refresca numericos en ConfigPage
     } catch (e) {
       setGuardadoMsg('❌ Error al guardar.')
     } finally {
@@ -211,6 +212,30 @@ export default function ConfigPage() {
   const [edits, setEdits] = useState({})
   const [saving, setSaving] = useState({})
   const [saved, setSaved] = useState({})
+  const [numericos, setNumericos] = useState([])   // [{linea_id, tripulacion, valor}]
+  const [filtroTrip, setFiltroTrip] = useState(null) // null=sin filtro, 'A','B','C'
+
+  const cargarNumericos = async () => {
+    const r = await axios.get('/api/numerico')
+    setNumericos(r.data)
+    return r.data
+  }
+
+  const aplicarNumericos = (lineasData, numericosData, trip) => {
+    setEdits(prev => {
+      const next = { ...prev }
+      lineasData.forEach(l => {
+        if (!next[l.id]) return
+        if (trip) {
+          const found = numericosData.find(n => n.linea_id === l.id && n.tripulacion === trip)
+          next[l.id] = { ...next[l.id], numerico: found ? String(found.valor) : '' }
+        } else {
+          next[l.id] = { ...next[l.id], numerico: l.numerico || '' }
+        }
+      })
+      return next
+    })
+  }
 
   const verificarPin = async () => {
     setVerificando(true)
@@ -231,10 +256,13 @@ export default function ConfigPage() {
 
   useEffect(() => {
     if (!autenticado) return
-    axios.get('/api/lineas').then((r) => {
-      setLineas(r.data)
+    Promise.all([axios.get('/api/lineas'), axios.get('/api/numerico')]).then(([rL, rN]) => {
+      const ls = rL.data
+      const ns = rN.data
+      setLineas(ls)
+      setNumericos(ns)
       const inicial = {}
-      r.data.forEach((l) => {
+      ls.forEach((l) => {
         inicial[l.id] = {
           total_lideres: l.total_lideres || '',
           personas_autorizadas: l.personas_autorizadas || '',
@@ -245,6 +273,12 @@ export default function ConfigPage() {
       setEdits(inicial)
     })
   }, [autenticado])
+
+  // Cuando cambia el filtro de tripulación, actualiza la columna Numérico
+  useEffect(() => {
+    if (lineas.length === 0) return
+    aplicarNumericos(lineas, numericos, filtroTrip)
+  }, [filtroTrip, numericos])
 
   const handleChange = (lineaId, field, value) => {
     setEdits((prev) => ({
@@ -258,12 +292,22 @@ export default function ConfigPage() {
     const e = edits[linea.id]
     setSaving((prev) => ({ ...prev, [linea.id]: true }))
     try {
+      const numVal = parseInt(e.numerico) || 0
+      // Siempre guarda la configuración base
       await axios.put(`/api/lineas/${linea.id}/config`, {
         total_lideres: parseInt(e.total_lideres) || 0,
         personas_autorizadas: parseInt(e.personas_autorizadas) || 0,
         pool_autorizado: parseInt(e.pool_autorizado) || 0,
-        numerico: parseInt(e.numerico) || 0,
+        numerico: numVal,
       })
+      // Si hay tripulación seleccionada, guarda también en linea_numerico
+      if (filtroTrip && e.numerico !== '') {
+        await axios.put(`/api/numerico/${linea.id}/${filtroTrip}`, { valor: numVal })
+        setNumericos(prev => {
+          const filtered = prev.filter(n => !(n.linea_id === linea.id && n.tripulacion === filtroTrip))
+          return [...filtered, { linea_id: linea.id, tripulacion: filtroTrip, valor: numVal }]
+        })
+      }
       setSaved((prev) => ({ ...prev, [linea.id]: true }))
     } finally {
       setSaving((prev) => ({ ...prev, [linea.id]: false }))
@@ -366,6 +410,29 @@ export default function ConfigPage() {
         <strong>Instrucciones:</strong> Ingresa los números autorizados por línea. El <strong>Total Autorizado</strong> se calcula automáticamente. Haz clic en <strong>Guardar</strong> en cada línea que modifiques.
       </div>
 
+      {/* ── Selector de Tripulación para Numérico ──────────────────────────── */}
+      <div className="bg-white rounded-2xl shadow p-4 flex items-center gap-3 flex-wrap">
+        <span className="text-sm font-semibold text-gray-700">📋 Ver Numérico por Tripulación:</span>
+        {[null, 'A', 'B', 'C'].map(t => (
+          <button
+            key={t ?? 'todos'}
+            onClick={() => setFiltroTrip(t)}
+            className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
+              filtroTrip === t
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+            }`}
+          >
+            {t === null ? 'General' : `Tripulación ${t}`}
+          </button>
+        ))}
+        {filtroTrip && (
+          <span className="text-xs text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full">
+            📊 Mostrando numérico de Trip. {filtroTrip} — edita y guarda para actualizar
+          </span>
+        )}
+      </div>
+
       {Object.entries(porArea).map(([area, areaLineas]) => (
         <div key={area} className="bg-white rounded-2xl shadow overflow-hidden">
           <div className="bg-gray-700 text-white px-5 py-3 font-bold text-sm uppercase tracking-wider">
@@ -449,7 +516,7 @@ export default function ConfigPage() {
       ))}
 
       {/* ── Carga de Excel Numérico ──────────────────────────────────────────── */}
-      <CargaNumerico lineas={lineas} />
+      <CargaNumerico lineas={lineas} onGuardado={async () => { const ns = await cargarNumericos(); aplicarNumericos(lineas, ns, filtroTrip) }} />
 
       {/* ── Cambiar PIN ──────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow p-5">

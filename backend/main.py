@@ -508,7 +508,24 @@ def get_numerico(db: Session = Depends(get_db)):
     return [{"linea_id": r.linea_id, "tripulacion": r.tripulacion, "valor": r.valor} for r in rows]
 
 
-@app.get("/api/colaboradores")
+class NumericoValorIn(BaseModel):
+    valor: int
+
+
+@app.put("/api/numerico/{linea_id}/{tripulacion}")
+def actualizar_numerico(linea_id: int, tripulacion: str, data: NumericoValorIn, db: Session = Depends(get_db)):
+    """Guarda o actualiza el numérico de una línea+tripulación específica."""
+    existing = db.query(models.LineaNumerico).filter(
+        models.LineaNumerico.linea_id == linea_id,
+        models.LineaNumerico.tripulacion == tripulacion,
+    ).first()
+    if existing:
+        existing.valor = data.valor
+    else:
+        db.add(models.LineaNumerico(linea_id=linea_id, tripulacion=tripulacion, valor=data.valor))
+    db.commit()
+    return {"ok": True}
+
 def get_colaboradores(
     area_id: Optional[int] = None,
     linea_id: Optional[int] = None,

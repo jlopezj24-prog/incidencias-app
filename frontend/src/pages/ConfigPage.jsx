@@ -209,32 +209,25 @@ export default function ConfigPage() {
   const [guardandoPin, setGuardandoPin] = useState(false)
 
   const [lineas, setLineas] = useState([])
-  const [edits, setEdits] = useState({})
+  const [edits, setEdits] = useState({})           // personas, lets, pool por linea_id
+  const [numericoEdits, setNumericoEdits] = useState({}) // numerico por linea_id (depende de trip)
   const [saving, setSaving] = useState({})
   const [saved, setSaved] = useState({})
-  const [numericos, setNumericos] = useState([])   // [{linea_id, tripulacion, valor}]
-  const [filtroTrip, setFiltroTrip] = useState(null) // null=sin filtro, 'A','B','C'
+  const [numericos, setNumericos] = useState([])   // [{linea_id, tripulacion, valor}] de la BD
+  const [filtroTrip, setFiltroTrip] = useState(null)
 
-  const cargarNumericos = async () => {
-    const r = await axios.get('/api/numerico')
-    setNumericos(r.data)
-    return r.data
-  }
-
-  const aplicarNumericos = (lineasData, numericosData, trip) => {
-    setEdits(prev => {
-      const next = { ...prev }
-      lineasData.forEach(l => {
-        if (!next[l.id]) return
-        if (trip) {
-          const found = numericosData.find(n => n.linea_id === l.id && n.tripulacion === trip)
-          next[l.id] = { ...next[l.id], numerico: found ? String(found.valor) : '' }
-        } else {
-          next[l.id] = { ...next[l.id], numerico: l.numerico || '' }
-        }
-      })
-      return next
+  // Recalcula numericoEdits cuando cambia trip o cuando cambian los datos
+  const calcNumericoEdits = (lineasData, numericosData, trip) => {
+    const next = {}
+    lineasData.forEach(l => {
+      if (trip) {
+        const found = numericosData.find(n => n.linea_id === l.id && n.tripulacion === trip)
+        next[l.id] = found !== undefined ? String(found.valor) : ''
+      } else {
+        next[l.id] = l.numerico ? String(l.numerico) : ''
+      }
     })
+    setNumericoEdits(next)
   }
 
   const verificarPin = async () => {
@@ -267,41 +260,44 @@ export default function ConfigPage() {
           total_lideres: l.total_lideres || '',
           personas_autorizadas: l.personas_autorizadas || '',
           pool_autorizado: l.pool_autorizado || '',
-          numerico: l.numerico || '',
         }
       })
       setEdits(inicial)
+      calcNumericoEdits(ls, ns, null)
     })
   }, [autenticado])
 
-  // Cuando cambia el filtro de tripulación, actualiza la columna Numérico
-  useEffect(() => {
-    if (lineas.length === 0) return
-    aplicarNumericos(lineas, numericos, filtroTrip)
-  }, [filtroTrip, numericos])
+  // Al cambiar el filtro de trip, recalcula numéricos mostrados
+  const handleFiltroTrip = (trip) => {
+    setFiltroTrip(trip)
+    calcNumericoEdits(lineas, numericos, trip)
+    setSaved({})
+  }
 
   const handleChange = (lineaId, field, value) => {
-    setEdits((prev) => ({
-      ...prev,
-      [lineaId]: { ...prev[lineaId], [field]: value },
-    }))
+    if (field === 'numerico') {
+      setNumericoEdits(prev => ({ ...prev, [lineaId]: value }))
+    } else {
+      setEdits((prev) => ({ ...prev, [lineaId]: { ...prev[lineaId], [field]: value } }))
+    }
     setSaved((prev) => ({ ...prev, [lineaId]: false }))
   }
 
   const handleSave = async (linea) => {
     const e = edits[linea.id]
+    const numStr = numericoEdits[linea.id] ?? ''
+    const numVal = parseInt(numStr) || 0
     setSaving((prev) => ({ ...prev, [linea.id]: true }))
     try {
-      const numVal = parseInt(e.numerico) || 0
-      // Siempre guarda la configuración base
+      // Guarda plantilla base (igual para todas las trips)
       await axios.put(`/api/lineas/${linea.id}/config`, {
         total_lideres: parseInt(e.total_lideres) || 0,
         personas_autorizadas: parseInt(e.personas_autorizadas) || 0,
         pool_autorizado: parseInt(e.pool_autorizado) || 0,
         numerico: numVal,
       })
-      // Si hay tripulación seleccionada, guarda también en linea_numerico
-      if (filtroTrip && e.numerico !== '') {
+      // Guarda numérico por tripulación si hay trip seleccionada
+      if (filtroTrip && numStr !== '') {
         await axios.put(`/api/numerico/${linea.id}/${filtroTrip}`, { valor: numVal })
         setNumericos(prev => {
           const filtered = prev.filter(n => !(n.linea_id === linea.id && n.tripulacion === filtroTrip))
@@ -351,11 +347,10 @@ export default function ConfigPage() {
   const diferencia = (id) => {
     const total = totalAutorizado(id)
     if (total === '—') return '—'
-    const e = edits[id]
-    const num = parseInt(e.numerico)
-    if (e.numerico === '' || isNaN(num)) return '—'
-    const diff = num - total
-    return diff
+    const numStr = numericoEdits[id] ?? ''
+    const num = parseInt(numStr)
+    if (numStr === '' || isNaN(num)) return '—'
+    return num - total
   }
 
   // ── Pantalla de PIN ──────────────────────────────────────────────────────────
@@ -416,7 +411,7 @@ export default function ConfigPage() {
         {[null, 'A', 'B', 'C'].map(t => (
           <button
             key={t ?? 'todos'}
-            onClick={() => setFiltroTrip(t)}
+            onClick={() => handleFiltroTrip(t)}
             className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
               filtroTrip === t
                 ? 'bg-blue-600 text-white border-blue-600'
@@ -471,12 +466,12 @@ export default function ConfigPage() {
                     <td className="p-3 text-center">
                       <span className="text-lg font-bold text-blue-700">{totalAutorizado(linea.id)}</span>
                     </td>
-                    {/* Numérico — captura BM/Planner */}
+                    {/* Numérico — captura BM/Planner, varía por tripulación */}
                     <td className="p-3 text-center bg-yellow-50">
                       <input
                         type="number"
                         min="0"
-                        value={edits[linea.id]?.numerico ?? ''}
+                        value={numericoEdits[linea.id] ?? ''}
                         placeholder="—"
                         onChange={(e) => handleChange(linea.id, 'numerico', e.target.value)}
                         className="w-16 border border-yellow-300 rounded-lg px-2 py-1 text-center focus:border-yellow-500 outline-none placeholder-gray-300 bg-white"
@@ -516,7 +511,11 @@ export default function ConfigPage() {
       ))}
 
       {/* ── Carga de Excel Numérico ──────────────────────────────────────────── */}
-      <CargaNumerico lineas={lineas} onGuardado={async () => { const ns = await cargarNumericos(); aplicarNumericos(lineas, ns, filtroTrip) }} />
+      <CargaNumerico lineas={lineas} onGuardado={async () => {
+        const r = await axios.get('/api/numerico')
+        setNumericos(r.data)
+        calcNumericoEdits(lineas, r.data, filtroTrip)
+      }} />
 
       {/* ── Cambiar PIN ──────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow p-5">

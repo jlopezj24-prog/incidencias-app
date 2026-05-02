@@ -24,6 +24,7 @@ export default function NavBar() {
           {link('/', 'Inicio')}
           {link('/supervisor', '👷 Líder')}
           {link('/gerente', '📊 Gerente')}
+          {link('/manual', '📋 Manual')}
           {link('/config', '⚙️')}
         </div>
       </div>

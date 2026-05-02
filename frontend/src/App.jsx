@@ -4,6 +4,7 @@ import HomePage from './pages/HomePage'
 import SupervisorPage from './pages/SupervisorPage'
 import ManagerPage from './pages/ManagerPage'
 import ConfigPage from './pages/ConfigPage'
+import ManualPage from './pages/ManualPage'
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
             <Route path="/supervisor" element={<SupervisorPage />} />
             <Route path="/gerente" element={<ManagerPage />} />
             <Route path="/config" element={<ConfigPage />} />
+            <Route path="/manual" element={<ManualPage />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>

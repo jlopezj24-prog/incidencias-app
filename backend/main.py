@@ -611,7 +611,10 @@ def get_reporte_ensamble(
     if not fecha_fin:
         fecha_fin = today
 
-    lineas = db.query(models.Linea).options(jl(models.Linea.area)).all()
+    lineas = sorted(
+        db.query(models.Linea).options(jl(models.Linea.area)).all(),
+        key=lambda l: crud.linea_sort_key(l.nombre)
+    )
 
     rep_q = (
         db.query(models.ReporteDiario)

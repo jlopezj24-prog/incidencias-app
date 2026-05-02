@@ -3,6 +3,15 @@ from datetime import date
 from typing import Optional
 import models
 
+# Orden personalizado de líneas por nombre
+LINEA_ORDEN = {
+    'V1': 1, 'V2': 2, 'V3': 3, 'V4': 4, 'IP': 5, 'Puertas': 6,
+    'C1': 7, 'C2': 8, 'C3/LF': 9, 'AGVS': 10, 'Motores': 11, 'Reparaciones': 12,
+}
+
+def linea_sort_key(nombre: str) -> int:
+    return LINEA_ORDEN.get(nombre, 99)
+
 
 def get_areas(db: Session):
     return db.query(models.Area).options(joinedload(models.Area.lineas)).all()
@@ -12,7 +21,7 @@ def get_lineas(db: Session, area_id: Optional[int] = None):
     q = db.query(models.Linea).options(joinedload(models.Linea.area))
     if area_id:
         q = q.filter(models.Linea.area_id == area_id)
-    return q.all()
+    return sorted(q.all(), key=lambda l: linea_sort_key(l.nombre))
 
 
 def get_linea(db: Session, linea_id: int):
@@ -202,7 +211,7 @@ def get_dashboard_data(
         del v["lideres_presentes_sum"]
         del v["reportes_count"]
 
-    por_linea = sorted(linea_data.values(), key=lambda x: -x["total"])
+    por_linea = sorted(linea_data.values(), key=lambda x: (linea_sort_key(x["linea"]), -x["total"]))
 
     # Resumen por área — agregar desde por_linea
     area_data: dict = {}

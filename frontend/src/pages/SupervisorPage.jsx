@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import DailyReport from '../components/DailyReport'
 
+const LINEA_ORDEN = {
+  'V1': 1, 'V2': 2, 'V3': 3, 'V4': 4, 'IP': 5, 'Puertas': 6,
+  'C1': 7, 'C2': 8, 'C3/LF': 9, 'AGVS': 10, 'Motores': 11, 'Reparaciones': 12,
+}
+const sortLineas = (arr) => [...arr].sort((a, b) => (LINEA_ORDEN[a.nombre] || 99) - (LINEA_ORDEN[b.nombre] || 99))
+
 const TIPOS_INCIDENCIA = [
   'Falta Injustificada',
   'Retardo',
@@ -55,7 +61,7 @@ export default function SupervisorPage() {
   useEffect(() => {
     if (selectedAreaId) {
       axios.get(`/api/lineas?area_id=${selectedAreaId}`).then((r) => {
-        setLineas(r.data)
+        setLineas(sortLineas(r.data))
         setSelectedLineaId('')
         setIncidencias([])
         setSavedReport(null)

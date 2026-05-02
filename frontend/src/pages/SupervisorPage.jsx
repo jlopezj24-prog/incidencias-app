@@ -43,6 +43,7 @@ export default function SupervisorPage() {
   const [savedReport, setSavedReport] = useState(null)
   const [loadingReport, setLoadingReport] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [message, setMessage] = useState(null)
 
   // Load areas on mount
@@ -133,6 +134,12 @@ export default function SupervisorPage() {
       setMessage({ type: 'error', text: 'Completa todos los campos requeridos.' })
       return
     }
+    // Si ya existe reporte, pedir confirmación primero
+    if (savedReport && !showConfirm) {
+      setShowConfirm(true)
+      return
+    }
+    setShowConfirm(false)
     setSaving(true)
     setMessage(null)
     try {
@@ -232,9 +239,12 @@ export default function SupervisorPage() {
           <p className="text-sm text-blue-500 mt-3">Buscando reporte existente…</p>
         )}
         {savedReport && !loadingReport && (
-          <p className="text-sm text-amber-600 mt-3">
-            ⚠️ Ya existe un reporte para esta línea y fecha — se actualizará al guardar.
-          </p>
+          <div className="mt-3 flex items-center gap-2 bg-amber-50 border border-amber-300 rounded-xl px-4 py-2.5">
+            <span className="text-amber-500 text-lg">⚠️</span>
+            <p className="text-sm text-amber-700 font-medium">
+              Ya existe un reporte para esta línea, tripulación y fecha — se te pedirá confirmar antes de sobrescribir.
+            </p>
+          </div>
         )}
       </section>
 
@@ -397,6 +407,44 @@ export default function SupervisorPage() {
               {saving ? 'Guardando…' : '💾 Guardar Reporte'}
             </button>
           </section>
+        </div>
+      )}
+
+      {/* ── Modal confirmación sobrescribir ─────────────────────────────── */}
+      {showConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full">
+            <div className="text-center mb-4">
+              <span className="text-5xl">⚠️</span>
+            </div>
+            <h3 className="text-lg font-bold text-gray-800 text-center mb-2">
+              ¿Sobrescribir reporte existente?
+            </h3>
+            <p className="text-sm text-gray-500 text-center mb-1">
+              Ya existe un reporte guardado para:
+            </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-center mb-5">
+              <p className="font-semibold text-amber-800">{lineas.find(l => l.id == selectedLineaId)?.nombre}</p>
+              <p className="text-amber-700">Tripulación {tripulacion} · {fecha}</p>
+            </div>
+            <p className="text-xs text-gray-400 text-center mb-5">
+              Los datos anteriores serán reemplazados con la información actual.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="flex-1 border border-gray-300 text-gray-700 px-4 py-2.5 rounded-xl font-medium hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSave}
+                className="flex-1 bg-amber-600 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-amber-700"
+              >
+                Sí, sobrescribir
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
